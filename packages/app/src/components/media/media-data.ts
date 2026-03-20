@@ -10,9 +10,25 @@ export interface MediaItem {
 
 export const MEDIA_ITEMS: MediaItem[] = [
   {
+    title:
+      '\u82F1\u4F1F\u8FBE\u70ED\u70B9\u5C0F\u65F6\u62A5: \u6570\u636E\u4E2D\u5FC3\u5C31\u662FToken\u5DE5\u5382 \u2014 Jensen Huang GTC 2026',
+    organization: 'Sina Tech',
+    url: 'https://k.sina.com.cn/article_7857201856_1d45362c001903dwbo.html?from=tech',
+    type: 'article',
+    date: '2026-03-20',
+  },
+  {
     title: 'NVIDIA H200 vs B200 vs GB200: Which GPU to Rent for AI in 2026?',
     organization: 'Spheron Network',
     url: 'https://www.spheron.network/blog/nvidia-h200-vs-b200-vs-gb200/',
+    type: 'article',
+    date: '2026-03-18',
+  },
+  {
+    title:
+      'GMI Cloud \u6210\u4E3A\u82F1\u4F1F\u8FBE Dynamo 1.0 \u53CA OpenShell \u9996\u53D1\u5408\u4F5C\u4F19\u4F34',
+    organization: 'GMI Cloud (Juejin)',
+    url: 'https://juejin.cn/post/7618440658614681600',
     type: 'article',
     date: '2026-03-18',
   },
