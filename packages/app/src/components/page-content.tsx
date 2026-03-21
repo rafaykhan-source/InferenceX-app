@@ -256,8 +256,8 @@ export function PageContent({ initialTab = 'inference' }: { initialTab?: string 
             <section>
               <Card data-testid="intro-section">
                 <h2 className="text-lg font-semibold mb-2">
-                  Open Source Continuous Inference Standard and Research Platform trusted by
-                  Operators of Trillion Dollar Token Factories
+                  Open Source Continuous Inference Benchmark trusted by Operators of Trillion Dollar
+                  GigaWatt Scale Token Factories
                 </h2>
                 <p className="text-muted-foreground mb-2">
                   As the world progresses exponentially towards AGI, software development and model
@@ -266,8 +266,8 @@ export function PageContent({ initialTab = 'inference' }: { initialTab?: string 
                   built for the benchmark itself which do not reflect real world performance
                 </p>
                 <p className="text-muted-foreground mb-2">
-                  <strong>InferenceX</strong> (formerly InferenceMAX) is our independent, vendor
-                  neutral, reproducible benchmark which addresses these issues by continously
+                  <strong>InferenceX&trade;</strong> (formerly InferenceMAX) is our independent,
+                  vendor neutral, reproducible benchmark which addresses these issues by continously
                   benchmarking inference software across an wide range of AI accelerators that is
                   acutally available to the the ML community. We continously update the benchmarks
                   to capture the speed of progress.
