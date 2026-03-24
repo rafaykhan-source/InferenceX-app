@@ -12,7 +12,7 @@ export const Footer = () => {
     <footer
       data-testid="footer"
       className={cn(
-        'relative w-full overflow-visible mt-auto pt-8',
+        'relative w-full overflow-visible mt-auto pt-32',
         'before:absolute',
         'before:bg-muted/50',
         'dark:before:bg-muted',
@@ -22,7 +22,7 @@ export const Footer = () => {
         'before:w-1/2',
         'before:h-[200%]',
         'before:right-0',
-        "before:mask-[url('/left-pattern-full.svg')]",
+        "before:mask-[url('/brand/left-pattern-full.svg')]",
         'before:mask-no-repeat',
         'before:mask-position-[top_right]',
         'before:mask-size-[100%]',
@@ -44,20 +44,7 @@ export const Footer = () => {
               href="https://semianalysis.com/"
               className="inline-block w-35 h-14.5"
             >
-              <Image
-                width={140}
-                height={58}
-                src="/logo.png"
-                alt="SemiAnalysis logo"
-                className="hidden dark:block"
-              />
-              <Image
-                width={140}
-                height={58}
-                src="/logo-black.png"
-                alt="SemiAnalysis logo"
-                className="dark:hidden"
-              />
+              <Image width={140} height={58} src="/brand/logo-color.png" alt="SemiAnalysis logo" />
             </Link>
             <p
               data-testid="footer-brand-description"

@@ -1,7 +1,39 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
+@plugin '@tailwindcss/typography';
 
 @custom-variant dark (&:is(.dark *));
+
+/* Allow hash navigation to clear the fixed navbar */
+.blog-prose h2[id],
+.blog-prose h3[id] {
+  scroll-margin-top: 6rem;
+}
+
+/* Allow long inline code to wrap on mobile */
+.blog-prose code {
+  overflow-wrap: break-word;
+  word-break: break-all;
+}
+
+/* Remove auto-inserted curly quotes from blockquotes in blog prose */
+.blog-prose blockquote p:first-of-type::before,
+.blog-prose blockquote p:last-of-type::after {
+  content: none;
+}
+
+/* Shiki dual-theme: light by default, dark when .dark class is active */
+.shiki,
+.shiki span {
+  color: var(--shiki-light);
+  background-color: var(--shiki-light-bg);
+}
+
+.dark .shiki,
+.dark .shiki span {
+  color: var(--shiki-dark);
+  background-color: var(--shiki-dark-bg);
+}
 
 @theme inline {
   /* Radius */
