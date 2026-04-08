@@ -38,7 +38,8 @@ import {
   getPrecisionLabel,
   getSequenceLabel,
 } from '@/lib/data-mappings';
-import { getModelSortIndex, GPU_SPECS, HARDWARE_CONFIG } from '@/lib/constants';
+import { HW_REGISTRY } from '@semianalysisai/inferencex-constants';
+import { getHardwareConfig, getModelSortIndex } from '@/lib/constants';
 import { useThemeColors } from '@/hooks/useThemeColors';
 
 import { getDisplayLabel } from '@/lib/utils';
@@ -269,7 +270,7 @@ export default function ThroughputCalculatorDisplay() {
 
   const handleExportCsv = useCallback(() => {
     const { headers, rows } = calculatorChartToCsv(results, targetValue, (hwKey) => {
-      const config = hardwareConfig[hwKey] || HARDWARE_CONFIG[hwKey];
+      const config = hardwareConfig[hwKey] || getHardwareConfig(hwKey);
       return config ? getDisplayLabel(config) : hwKey;
     });
     exportToCsv(`InferenceX_calculator_${selectedModel}`, headers, rows);
@@ -320,7 +321,7 @@ export default function ThroughputCalculatorDisplay() {
     if (selectedResults.length < 2) return null;
 
     const getLabel = (r: InterpolatedResult) => {
-      const config = hardwareConfig[r.hwKey] || HARDWARE_CONFIG[r.hwKey];
+      const config = hardwareConfig[r.hwKey] || getHardwareConfig(r.hwKey);
       const baseName = config ? getDisplayLabel(config) : r.hwKey;
       if (r.precision) return `${baseName} (${r.precision.toUpperCase()})`;
       return baseName;
@@ -640,7 +641,7 @@ export default function ThroughputCalculatorDisplay() {
                             data-testid="calculator-cost-badges"
                           >
                             All in Power/GPU:{' '}
-                            {Object.entries(GPU_SPECS).map(([base, specs]) => (
+                            {Object.entries(HW_REGISTRY).map(([base, specs]) => (
                               <Badge key={base} variant="outline">
                                 {base.toUpperCase()}: {specs.power}kW
                               </Badge>
@@ -668,7 +669,7 @@ export default function ThroughputCalculatorDisplay() {
                             data-testid="calculator-cost-badges"
                           >
                             TCO $/GPU/hr:{' '}
-                            {Object.entries(GPU_SPECS).map(([base, specs]) => (
+                            {Object.entries(HW_REGISTRY).map(([base, specs]) => (
                               <Badge key={base} variant="outline">
                                 {base.toUpperCase()}: $
                                 {(costProvider === 'costh'
@@ -887,7 +888,7 @@ export default function ThroughputCalculatorDisplay() {
                       const resultKey = [...selectedBars][0];
                       const r = results.find((res) => res.resultKey === resultKey);
                       if (!r) return resultKey;
-                      const config = hardwareConfig[r.hwKey] || HARDWARE_CONFIG[r.hwKey];
+                      const config = hardwareConfig[r.hwKey] || getHardwareConfig(r.hwKey);
                       const baseName = config ? getDisplayLabel(config) : r.hwKey;
                       return r.precision ? `${baseName} (${r.precision.toUpperCase()})` : baseName;
                     })()}{' '}
