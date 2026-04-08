@@ -1,14 +1,16 @@
 'use client';
 import { track } from '@/lib/analytics';
 import { useMemo, useState } from 'react';
-import { ChevronDown, X } from 'lucide-react';
+import { BarChart3, ChevronDown, Table2, X } from 'lucide-react';
 
 import { useInference } from '@/components/inference/InferenceContext';
 import type { InferenceData, OverlayData, TrendDataPoint } from '@/components/inference/types';
 import { processOverlayChartData } from '@/components/inference/utils';
+import InferenceTable from '@/components/inference/ui/InferenceTable';
 import ScatterGraph from '@/components/inference/ui/ScatterGraph';
 import { Card } from '@/components/ui/card';
 import { ChartButtons } from '@/components/ui/chart-buttons';
+import { type SegmentedToggleOption, SegmentedToggle } from '@/components/ui/segmented-toggle';
 import { ChartShareActions, MetricAssumptionNotes } from '@/components/ui/chart-display-helpers';
 import { exportToCsv } from '@/lib/csv-export';
 import { inferenceChartToCsv } from '@/lib/csv-export-helpers';
@@ -89,6 +91,23 @@ function E2eXAxisDropdown({
   );
 }
 
+type InferenceViewMode = 'chart' | 'table';
+
+const VIEW_MODE_OPTIONS: SegmentedToggleOption<InferenceViewMode>[] = [
+  {
+    value: 'chart',
+    label: 'Chart',
+    icon: <BarChart3 className="size-3.5" />,
+    testId: 'inference-chart-view-btn',
+  },
+  {
+    value: 'table',
+    label: 'Table',
+    icon: <Table2 className="size-3.5" />,
+    testId: 'inference-table-view-btn',
+  },
+];
+
 /**
  * Renders the inference chart cards, captions, overlay controls, and trend drill-down dialog for
  * the current filtered benchmark data.
@@ -125,6 +144,13 @@ export default function ChartDisplay() {
     loading: changelogsLoading,
     totalDatesQueried,
   } = useComparisonChangelogs(selectedGPUs, selectedDateRange, dateRangeAvailableDates);
+
+  const [viewModes, setViewModes] = useState<Record<number, InferenceViewMode>>({});
+  const getViewMode = (index: number): InferenceViewMode => viewModes[index] ?? 'chart';
+  const handleViewModeChange = (index: number, value: InferenceViewMode) => {
+    setViewModes((prev) => ({ ...prev, [index]: value }));
+    track('inference_view_changed', { view: value, chartIndex: index });
+  };
 
   const { unofficialRunInfo, getOverlayData, isUnofficialRun } = useUnofficialRun();
 
@@ -257,6 +283,16 @@ export default function ChartDisplay() {
                       ? 'latency'
                       : 'interactivity'
                 }
+                leadingControls={
+                  <SegmentedToggle
+                    value={getViewMode(graphIndex)}
+                    options={VIEW_MODE_OPTIONS}
+                    onValueChange={(v) => handleViewModeChange(graphIndex, v)}
+                    ariaLabel="View mode"
+                    testId={`inference-view-toggle-${graphIndex}`}
+                  />
+                }
+                hideImageExport={getViewMode(graphIndex) === 'table'}
                 setIsLegendExpanded={setIsLegendExpanded}
                 exportFileName={`InferenceX_${selectedModel}_${graph.chartDefinition.chartType}`}
                 onExportCsv={() => {
@@ -391,6 +427,19 @@ export default function ChartDisplay() {
                       </div>
                     </>
                   );
+
+                  if (getViewMode(graphIndex) === 'table') {
+                    return (
+                      <>
+                        {chartCaption}
+                        <InferenceTable
+                          data={graph.data}
+                          chartDefinition={graph.chartDefinition}
+                          selectedYAxisMetric={selectedYAxisMetric}
+                        />
+                      </>
+                    );
+                  }
 
                   return selectedDateRange.startDate &&
                     selectedDateRange.endDate &&

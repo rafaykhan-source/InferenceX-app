@@ -20,6 +20,8 @@ interface ChartButtonsProps {
   setIsLegendExpanded?: (expanded: boolean) => void;
   /** Hide the zoom reset button (e.g., for charts without zoom) */
   hideZoomReset?: boolean;
+  /** Hide the PNG image export button (e.g., for table views) */
+  hideImageExport?: boolean;
   /** Optional callback to export chart data as CSV */
   onExportCsv?: () => void;
   /** Human-readable base name for exported files (e.g. "DeepSeek-R1_throughput_interactivity"). Falls back to chartId. */
@@ -47,6 +49,7 @@ export function ChartButtons({
   zoomResetEvent,
   setIsLegendExpanded,
   hideZoomReset,
+  hideImageExport,
   onExportCsv,
   exportFileName,
   leadingControls,
@@ -101,8 +104,9 @@ export function ChartButtons({
               data-testid="export-png-button"
               data-ph-capture-attribute-export-type="png"
               data-ph-capture-attribute-chart={chartId}
-              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer"
+              className={`flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer ${hideImageExport ? 'opacity-40 pointer-events-none' : ''}`}
               onClick={handleExportPng}
+              aria-disabled={hideImageExport}
             >
               <Image size={14} />
               Download PNG
@@ -138,6 +142,7 @@ export function ChartButtons({
           variant="outline"
           size="icon"
           className="h-7 w-7"
+          disabled={hideImageExport}
           onClick={() => {
             track(`${analyticsPrefix}_zoom_reset_button`);
             window.dispatchEvent(new CustomEvent(resetEventName));
