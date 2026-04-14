@@ -12,6 +12,52 @@ const INTERACTIVE =
   'button, a, [role="button"], [role="tab"], [role="switch"], [role="checkbox"], [role="link"], input[type="checkbox"], input[type="radio"], summary';
 
 /**
+ * Track whether the user has interacted with the page.
+ * Once true, stays true for the session — browsers remember the gesture.
+ */
+let userHasInteracted = false;
+if (typeof document !== 'undefined') {
+  const markInteracted = () => {
+    userHasInteracted = true;
+  };
+  document.addEventListener('pointerdown', markInteracted, { capture: true, once: true });
+  document.addEventListener('keydown', markInteracted, { capture: true, once: true });
+}
+
+/** Song start timestamps (in seconds) within the Minecraft OST compilation video. */
+const MINECRAFT_OST_VIDEO_ID = 'bIOiV4d1SVI';
+
+const SONGS = [
+  { name: 'Subwoofer Lullaby', start: 0 },
+  { name: 'Living Mice', start: 207 },
+  { name: 'Haggstorm', start: 370 },
+  { name: 'Minecraft', start: 572 },
+  { name: 'Mice on Venus', start: 817 },
+  { name: 'Dry Hands', start: 1099 },
+  { name: 'Wet Hands', start: 1146 },
+  { name: 'Clark', start: 1233 },
+  { name: 'Sweden', start: 1418 },
+  { name: 'Danny', start: 1631 },
+];
+
+function getInitialMusicStart(): number {
+  try {
+    const raw = sessionStorage.getItem('minecraft-music-pos');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Date.now() - parsed.ts < 30_000 && typeof parsed.time === 'number' && parsed.time > 0) {
+        return Math.floor(parsed.time);
+      }
+    }
+  } catch {
+    /* ignore parse errors */
+  }
+
+  const song = SONGS[Math.floor(Math.random() * SONGS.length)];
+  return song.start;
+}
+
+/**
  * Renders the floating 3D Minecraft blocks background, plays
  * the classic button click sound on interactive element presses,
  * and streams background music from the Minecraft OST playlist.
@@ -124,12 +170,8 @@ export function MinecraftBackground() {
       if (!player) return;
       try {
         const time = player.getCurrentTime();
-        const index = player.getPlaylistIndex();
         if (time > 0) {
-          sessionStorage.setItem(
-            'minecraft-music-pos',
-            JSON.stringify({ time, index, ts: Date.now() }),
-          );
+          sessionStorage.setItem('minecraft-music-pos', JSON.stringify({ time, ts: Date.now() }));
         }
       } catch {
         /* player may not be ready */
@@ -146,12 +188,8 @@ export function MinecraftBackground() {
       if (!player) return;
       try {
         const time = player.getCurrentTime();
-        const index = player.getPlaylistIndex();
         if (time > 0) {
-          sessionStorage.setItem(
-            'minecraft-music-pos',
-            JSON.stringify({ time, index, ts: Date.now() }),
-          );
+          sessionStorage.setItem('minecraft-music-pos', JSON.stringify({ time, ts: Date.now() }));
         }
       } catch {
         /* player may not be ready */
@@ -179,65 +217,30 @@ export function MinecraftBackground() {
       wrapperRef.current.append(el);
 
       let started = false;
+      const startSeconds = getInitialMusicStart();
+
       function nudge() {
         if (started) return;
         playerRef.current?.playVideo();
       }
       nudgeRef.current = nudge;
-      function onStarted(player: YT.Player) {
+      function onStarted() {
         started = true;
         document.removeEventListener('pointerdown', nudge, true);
         document.removeEventListener('keydown', nudge, true);
         nudgeRef.current = null;
-
-        // Resume from saved position if recent (< 30s ago), otherwise random
-        let savedPos: { time: number; index: number; ts: number } | null = null;
-        try {
-          const raw = sessionStorage.getItem('minecraft-music-pos');
-          if (raw) {
-            const parsed = JSON.parse(raw);
-            if (Date.now() - parsed.ts < 30_000) {
-              savedPos = parsed;
-            }
-          }
-        } catch {
-          /* ignore parse errors */
-        }
-
-        if (savedPos) {
-          // Resume: jump to saved playlist track, then seek within it
-          if (typeof savedPos.index === 'number' && savedPos.index >= 0) {
-            player.playVideoAt(savedPos.index);
-          }
-          // Delay seekTo so playVideoAt has time to load the track
-          setTimeout(() => {
-            if (typeof savedPos.time === 'number' && savedPos.time > 0) {
-              player.seekTo(savedPos.time, true);
-            }
-          }, 500);
-        } else {
-          // Fresh session — pick a random track and random position
-          // The playlist has ~20 tracks; pick a random index
-          const randomIndex = Math.floor(Math.random() * 20);
-          player.playVideoAt(randomIndex);
-          setTimeout(() => {
-            const duration = player.getDuration();
-            if (duration > 0) {
-              player.seekTo(Math.random() * duration, true);
-            }
-          }, 500);
-        }
       }
 
       try {
         playerRef.current = new YT.Player(el, {
           height: '1',
           width: '1',
+          videoId: MINECRAFT_OST_VIDEO_ID,
           playerVars: {
-            list: 'RDbIOiV4d1SVI',
-            listType: 'playlist',
             autoplay: 1,
             loop: 1,
+            playlist: MINECRAFT_OST_VIDEO_ID,
+            start: startSeconds,
             controls: 0,
             disablekb: 1,
             modestbranding: 1,
@@ -251,11 +254,24 @@ export function MinecraftBackground() {
               // actually starts (onStateChange fires PLAYING).
               document.addEventListener('pointerdown', nudge, true);
               document.addEventListener('keydown', nudge, true);
+              // If the user already interacted (e.g. clicked the theme
+              // toggle), aggressively retry playVideo on short intervals
+              // so music starts as soon as the browser allows it.
+              if (userHasInteracted) {
+                let retries = 0;
+                const retry = setInterval(() => {
+                  if (started || retries++ > 10) {
+                    clearInterval(retry);
+                    return;
+                  }
+                  playerRef.current?.playVideo();
+                }, 300);
+              }
             },
             onStateChange: (e: YT.PlayerEvent & { data: number }) => {
               // YT.PlayerState.PLAYING === 1
-              if (e.data === 1 && !started) onStarted(e.target);
-              // YT.PlayerState.ENDED === 0 — loop the playlist
+              if (e.data === 1 && !started) onStarted();
+              // YT.PlayerState.ENDED === 0 — loop the single allowed video
               if (e.data === 0) e.target.playVideo();
             },
           },
@@ -295,12 +311,8 @@ export function MinecraftBackground() {
       if (player) {
         try {
           const time = player.getCurrentTime();
-          const index = player.getPlaylistIndex();
           if (time > 0) {
-            sessionStorage.setItem(
-              'minecraft-music-pos',
-              JSON.stringify({ time, index, ts: Date.now() }),
-            );
+            sessionStorage.setItem('minecraft-music-pos', JSON.stringify({ time, ts: Date.now() }));
           }
         } catch {
           /* ignore */

@@ -2,12 +2,13 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { track } from '@/lib/analytics';
 
 import { ModeToggle } from '@/components/ui/mode-toggle';
 import { MinecraftToggles } from '@/components/minecraft/minecraft-toggles';
+import { navigateInApp } from '@/lib/client-navigation';
 import { cn } from '@/lib/utils';
 
 import { GitHubStars } from './GithubStars';
@@ -48,34 +49,9 @@ function isActive(pathname: string, href: string): boolean {
   return pathname.startsWith(href);
 }
 
-/**
- * Layout group for a path. Next.js soft navigation breaks when crossing
- * layout boundaries, so we use plain <a> tags for those transitions.
- */
-function layoutGroup(path: string): 'dashboard' | 'blog' | 'root' {
-  if (DASHBOARD_TABS.some((tab) => path.startsWith(tab))) return 'dashboard';
-  if (path.startsWith('/blog')) return 'blog';
-  return 'root';
-}
-
-/**
- * Use Next.js Link for same-layout-group navigation (soft nav),
- * plain <a> when crossing layout boundaries (full page nav)
- * to work around Next.js soft navigation bugs between route groups.
- */
-function NavLink({
-  href,
-  currentPath,
-  ...props
-}: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string; currentPath: string }) {
-  if (layoutGroup(currentPath) === layoutGroup(href)) {
-    return <Link href={href} {...props} />;
-  }
-  return <a href={href} {...props} />;
-}
-
 export const Header = ({ starCount }: { starCount?: number | null }) => {
   const pathname = usePathname() ?? '/';
+  const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -116,7 +92,7 @@ export const Header = ({ starCount }: { starCount?: number | null }) => {
       <div className="container mx-auto px-4 lg:px-8">
         <div className="flex h-14 items-center gap-6">
           {/* Brand */}
-          <a href="/" className="flex items-center gap-2 shrink-0">
+          <Link href="/" className="flex items-center gap-2 shrink-0">
             <span className="text-lg font-bold tracking-tight">InferenceX</span>
             <span className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground">
               by
@@ -129,26 +105,28 @@ export const Header = ({ starCount }: { starCount?: number | null }) => {
                 priority
               />
             </span>
-          </a>
+          </Link>
 
           {/* Desktop nav */}
           <nav className="hidden lg:flex items-center gap-1">
             {NAV_LINKS.map(({ href, label, testId, event }) => (
-              <NavLink
+              <Link
                 key={href}
                 data-testid={testId}
                 href={href}
-                currentPath={pathname}
                 className={cn(
                   'px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
                   isActive(pathname, href)
                     ? 'text-brand bg-brand/10'
                     : 'text-muted-foreground hover:text-foreground hover:bg-muted',
                 )}
-                onClick={() => track(event)}
+                onClick={(e) => {
+                  track(event);
+                  if (href === '/inference') navigateInApp(e, router, href);
+                }}
               >
                 {label}
-              </NavLink>
+              </Link>
             ))}
           </nav>
 
@@ -186,20 +164,22 @@ export const Header = ({ starCount }: { starCount?: number | null }) => {
               {mobileMenuOpen && (
                 <div className="absolute right-0 top-full mt-2 z-50 flex flex-col rounded-lg border border-border bg-background p-1.5 shadow-lg min-w-40">
                   {NAV_LINKS.map(({ href, label, event }) => (
-                    <NavLink
+                    <Link
                       key={href}
                       href={href}
-                      currentPath={pathname}
                       className={cn(
                         'px-3 py-2 rounded-md text-sm font-medium transition-colors',
                         isActive(pathname, href)
                           ? 'text-brand bg-brand/10'
                           : 'text-muted-foreground hover:text-foreground hover:bg-muted',
                       )}
-                      onClick={() => track(event)}
+                      onClick={(e) => {
+                        track(event);
+                        if (href === '/inference') navigateInApp(e, router, href);
+                      }}
                     >
                       {label}
-                    </NavLink>
+                    </Link>
                   ))}
                 </div>
               )}
