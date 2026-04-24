@@ -436,11 +436,14 @@ export function createMockUnofficialRunContext(
   return {
     isUnofficialRun: false,
     unofficialRunInfo: null,
+    unofficialRunInfos: [],
+    runIndexByUrl: {},
     unofficialChartData: null,
     unofficialEvalRows: null,
     loading: false,
     error: null,
     clearUnofficialRun: namedStub('clearUnofficialRun'),
+    dismissRun: namedStub('dismissRun'),
     availableModelsAndSequences: [],
     getOverlayData: cy
       .stub()
