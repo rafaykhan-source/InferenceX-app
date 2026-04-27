@@ -39,7 +39,12 @@ import {
 import { useUrlState } from '@/hooks/useUrlState';
 import { buildAvailabilityHwKey } from '@/lib/chart-utils';
 import { getHardwareConfig, getModelSortIndex, isKnownGpu, TABLEAU_10 } from '@/lib/constants';
-import { MODEL_PREFIX_MAPPING } from '@/lib/data-mappings';
+import { hasMtpEngineExclusion, MODEL_PREFIX_MAPPING } from '@/lib/data-mappings';
+import {
+  MtpEngineConflictToast,
+  type MtpEngineConflictDetail,
+} from '@/components/mtp-engine-conflict-toast';
+import { clearAllMtpFamilies, resolveMtpToggle } from '@/lib/mtp-exclusion';
 import { filterRunsByModel, getDisplayLabel } from '@/lib/utils';
 
 import { useChartData } from './hooks/useChartData';
@@ -139,6 +144,10 @@ export function InferenceProvider({
   // Persists the preset's desired hw filter beyond pendingHwFilter consumption.
   // Cleared when the user manually changes filters (clearing the preset).
   const presetHwFilterRef = useRef<string[] | null>(null);
+
+  // --- MTP cross-engine conflict toast state ---
+  const [mtpConflict, setMtpConflict] = useState<MtpEngineConflictDetail | null>(null);
+  const dismissMtpConflict = useCallback(() => setMtpConflict(null), []);
 
   // ── Data fetching (gated by isActive) ──────────────────────────────────────
   const latestDate = availableDates.length > 0 ? availableDates.at(-1) : undefined;
@@ -414,13 +423,31 @@ export function InferenceProvider({
     }
   }, [pendingHwFilter, hwTypesWithData, setActiveHwTypes]);
 
+  const mtpExclusion = hasMtpEngineExclusion(selectedModel);
   const toggleHwType = useCallback(
     (hw: string) => {
+      if (mtpExclusion) {
+        const decision = resolveMtpToggle(activeHwTypes, hw, hwTypesWithData);
+        if (decision.kind === 'block') {
+          setMtpConflict({
+            kind: 'blocked',
+            attempted: decision.attempted,
+            existing: decision.existing,
+          });
+          return;
+        }
+        if (decision.kind === 'silent-disable-all') {
+          setActiveHwTypes(decision.result);
+          setActivePresetId(null);
+          presetHwFilterRef.current = null;
+          return;
+        }
+      }
       toggleHwRaw(hw, hwTypesWithData);
       setActivePresetId(null);
       presetHwFilterRef.current = null;
     },
-    [toggleHwRaw, hwTypesWithData],
+    [toggleHwRaw, hwTypesWithData, mtpExclusion, activeHwTypes, setActiveHwTypes],
   );
 
   const removeHwType = useCallback(
@@ -450,10 +477,17 @@ export function InferenceProvider({
     [toggleDateRaw, allDateIds],
   );
   const removeActiveDate = useCallback((id: string) => removeDateRaw(id), [removeDateRaw]);
-  const selectAllHwTypes = useCallback(
-    () => selectAllHwRaw(hwTypesWithData),
-    [selectAllHwRaw, hwTypesWithData],
-  );
+  const selectAllHwTypes = useCallback(() => {
+    if (mtpExclusion) {
+      const { result, droppedFamilies } = clearAllMtpFamilies(hwTypesWithData);
+      setActiveHwTypes(result);
+      if (droppedFamilies.length > 0) {
+        setMtpConflict({ kind: 'cleared', families: droppedFamilies });
+      }
+      return;
+    }
+    selectAllHwRaw(hwTypesWithData);
+  }, [selectAllHwRaw, hwTypesWithData, mtpExclusion, setActiveHwTypes]);
   const selectAllActiveDates = useCallback(
     () => selectAllDatesRaw(allDateIds),
     [selectAllDatesRaw, allDateIds],
@@ -482,12 +516,26 @@ export function InferenceProvider({
       const filterSet = new Set(presetFilter);
       const filtered = new Set([...hwTypesWithData].filter((k) => filterSet.has(k)));
       if (filtered.size > 0) {
+        // Presets explicitly chose hw configs — respect their picks. The
+        // user-toggle guard still prevents simultaneously activating two
+        // engine families' MTP via subsequent clicks.
         setActiveHwTypes(filtered);
         return;
       }
     }
+    if (mtpExclusion) {
+      // When multiple engine families' MTP have data, disable them all by
+      // default and surface a toast. The user has to opt in to one engine's
+      // MTP explicitly — never multiple at once.
+      const { result, droppedFamilies } = clearAllMtpFamilies(hwTypesWithData);
+      setActiveHwTypes(result);
+      if (droppedFamilies.length > 0) {
+        setMtpConflict({ kind: 'cleared', families: droppedFamilies });
+      }
+      return;
+    }
     setActiveHwTypes(hwTypesWithData);
-  }, [selectedModel, effectiveSequence, precisionsKey, hwTypesWithData]);
+  }, [selectedModel, effectiveSequence, precisionsKey, hwTypesWithData, mtpExclusion]);
 
   // Remove selected GPUs that no longer have data for current filters
   useEffect(() => {
@@ -890,6 +938,7 @@ export function InferenceProvider({
   return (
     <InferenceContext.Provider value={value}>
       {children}
+      <MtpEngineConflictToast detail={mtpConflict} onDismiss={dismissMtpConflict} />
       <Dialog open={showDateRangeDialog} onOpenChange={setShowDateRangeDialog}>
         <DialogContent>
           <DialogHeader>
