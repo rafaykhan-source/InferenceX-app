@@ -16,6 +16,7 @@ describe('CSV Export', () => {
     cy.get('[data-testid="export-csv-button"]')
       .should('be.visible')
       .and('contain.text', 'Download CSV');
+    cy.get('body').type('{esc}');
   });
 
   it('clicking Download CSV on inference chart triggers file download', () => {
@@ -64,6 +65,7 @@ describe('CSV Export', () => {
     cy.get('[data-testid="export-csv-button"]')
       .should('be.visible')
       .and('contain.text', 'Download CSV');
+    cy.get('body').type('{esc}');
   });
 
   it('Download PNG option is still available in dropdown', () => {
