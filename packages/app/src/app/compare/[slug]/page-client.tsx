@@ -85,34 +85,36 @@ export default function ComparePageClient({
       initialPrecisions={initialPrecisions}
     >
       <InferenceProvider activeTab="compare" initialActiveHwTypes={[a, b]}>
-        <Card className="flex flex-col gap-3">
-          <header>
-            <div className="text-xs uppercase tracking-wider text-muted-foreground">
-              GPU comparison
-            </div>
-            <h1 className="text-2xl lg:text-3xl font-bold tracking-tight mt-1">{label}</h1>
-            <p className="mt-2 text-sm text-muted-foreground max-w-3xl">
-              Head-to-head AI inference benchmark comparison of <strong>{aLabel}</strong> ({aVendor}{' '}
-              {aArch}) and <strong>{bLabel}</strong> ({bVendor} {bArch}). Latency, throughput, and
-              cost across LLM workloads. Use the controls below to switch models, sequences,
-              precisions, and metrics — same interactions as{' '}
-              <Link href="/" className="underline hover:text-primary">
-                the main inference chart
-              </Link>
-              .
-            </p>
-          </header>
-          <PairSummaryGrid
-            a={a}
-            b={b}
-            aLabel={aLabel}
-            bLabel={bLabel}
-            summaryA={summaryA}
-            summaryB={summaryB}
-            defaultModel={defaultModel}
-          />
-        </Card>
-        <InferenceChartDisplay />
+        <div className="flex flex-col gap-4">
+          <InferenceChartDisplay />
+          <Card className="flex flex-col gap-3">
+            <header>
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">
+                GPU comparison
+              </div>
+              <h1 className="text-2xl lg:text-3xl font-bold tracking-tight mt-1">{label}</h1>
+              <p className="mt-2 text-sm text-muted-foreground max-w-3xl">
+                Head-to-head AI inference benchmark comparison of <strong>{aLabel}</strong> (
+                {aVendor} {aArch}) and <strong>{bLabel}</strong> ({bVendor} {bArch}). Latency,
+                throughput, and cost across LLM workloads. Use the chart controls above to switch
+                models, sequences, precisions, and metrics — same interactions as{' '}
+                <Link href="/" className="underline hover:text-primary">
+                  the main inference chart
+                </Link>
+                .
+              </p>
+            </header>
+            <PairSummaryGrid
+              a={a}
+              b={b}
+              aLabel={aLabel}
+              bLabel={bLabel}
+              summaryA={summaryA}
+              summaryB={summaryB}
+              defaultModel={defaultModel}
+            />
+          </Card>
+        </div>
       </InferenceProvider>
     </GlobalFilterProvider>
   );
@@ -161,10 +163,10 @@ function PairSummaryGrid({
   ];
 
   return (
-    <div className="mt-2 border border-border/50 rounded-md overflow-hidden">
+    <div className="border border-border/50 rounded-md overflow-hidden">
       <div className="px-3 py-2 text-xs text-muted-foreground bg-muted/30 border-b border-border/50">
-        Latest results for {defaultModel} (best across all configurations) — explore more in the
-        chart below.
+        Latest results for {defaultModel} (best across all configurations) — use the chart filters
+        above to change model, sequence, and precision.
       </div>
       <div className="grid grid-cols-3 text-sm" data-testid={`compare-summary-${a}-${b}`}>
         <div className="px-3 py-2 font-medium text-muted-foreground border-r border-border/40">
