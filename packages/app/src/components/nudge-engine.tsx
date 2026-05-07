@@ -9,7 +9,9 @@ import {
   isPermanentlySuppressed,
   isWithinSchedule,
   markDismissed,
+  markShown,
 } from '@/lib/nudges/persistence';
+import { dismissesOnAction } from '@/lib/nudges/policy';
 import { NUDGE_REGISTRY } from '@/lib/nudges/registry';
 import type { NudgeDefinition, NudgeTrigger } from '@/lib/nudges/types';
 import { BottomToast } from '@/components/ui/bottom-toast';
@@ -70,20 +72,20 @@ export function NudgeEngine({ scope }: NudgeEngineProps) {
     if (def.type === 'banner') {
       if (bannerShownRef.current) return;
       bannerShownRef.current = true;
-      markDismissed(def.storageKey, def.dismissal);
       setActiveBannerId(def.id);
     } else {
       if (overlayShownRef.current) return;
       overlayShownRef.current = true;
-      markDismissed(def.storageKey, def.dismissal);
       setActiveOverlayId(def.id);
     }
+    markShown(def.storageKey, def.dismissal);
     trackNudgeEvent(def, 'shown');
   }, []);
 
   const dismissBanner = useCallback(() => {
     if (!activeBanner) return;
     trackNudgeEvent(activeBanner, 'dismissed');
+    markDismissed(activeBanner.storageKey, activeBanner.dismissal);
     sessionDismissedRef.current.add(activeBanner.id);
     setActiveBannerId(null);
     bannerShownRef.current = false;
@@ -92,6 +94,7 @@ export function NudgeEngine({ scope }: NudgeEngineProps) {
   const dismissOverlay = useCallback(() => {
     if (!activeOverlay) return;
     trackNudgeEvent(activeOverlay, 'dismissed');
+    markDismissed(activeOverlay.storageKey, activeOverlay.dismissal);
     sessionDismissedRef.current.add(activeOverlay.id);
     setActiveOverlayId(null);
     overlayShownRef.current = false;
@@ -101,6 +104,11 @@ export function NudgeEngine({ scope }: NudgeEngineProps) {
     if (!activeBanner) return;
     trackNudgeEvent(activeBanner, 'action');
     activeBanner.content.onLinkClick?.();
+    // For navigation-style banners (default `dismissOnAction: false`), the
+    // banner stays visible until the page transitions. We deliberately leave
+    // `bannerShownRef`/`activeBannerId` set — the slot is still occupied.
+    if (!dismissesOnAction(activeBanner)) return;
+    markDismissed(activeBanner.storageKey, activeBanner.dismissal);
     sessionDismissedRef.current.add(activeBanner.id);
     setActiveBannerId(null);
     bannerShownRef.current = false;
@@ -117,6 +125,8 @@ export function NudgeEngine({ scope }: NudgeEngineProps) {
       activeOverlay.content.primaryAction?.onClick(detail);
     }
 
+    if (!dismissesOnAction(activeOverlay)) return;
+    markDismissed(activeOverlay.storageKey, activeOverlay.dismissal);
     sessionDismissedRef.current.add(activeOverlay.id);
     setActiveOverlayId(null);
     overlayShownRef.current = false;
@@ -174,6 +184,10 @@ export function NudgeEngine({ scope }: NudgeEngineProps) {
             // Storage unavailable.
           }
         }
+        // For nudges without a separate permanentSuppressKey (e.g. eval-samples),
+        // also write the dismissal storage so the suppression survives reload.
+        // Harmless when permanentSuppressKey is set since both keys persist.
+        markDismissed(def.storageKey, def.dismissal);
       };
       window.addEventListener(def.permanentSuppressEvent, handler);
       handlers.push([def.permanentSuppressEvent, handler]);
