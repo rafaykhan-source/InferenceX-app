@@ -60,16 +60,21 @@ export function InferenceProvider({
   children,
   activeTab,
   initialActiveHwTypes,
+  compareGpuPair,
 }: {
   children: ReactNode;
   activeTab: string;
   /**
    * Initial legend filter (activeHwTypes) when the URL has no `i_active` param.
    * Used by `/compare/[a]-vs-[b]` pages to focus the chart on the two GPUs from
-   * the slug while leaving the legend interactive — the user can still toggle
-   * other hardware on or off without leaving the compare page.
+   * the slug. Series for other GPUs are omitted — only matching hw keys remain.
    */
   initialActiveHwTypes?: string[];
+  /**
+   * When set (canonical `/compare` pages), benchmark data is filtered to these two
+   * registry GPU base keys so other hardware never appears on the legend or plots.
+   */
+  compareGpuPair?: readonly [string, string];
 }) {
   const isActive =
     activeTab === 'inference' || activeTab === 'historical' || activeTab === 'compare';
@@ -203,6 +208,7 @@ export function InferenceProvider({
     effectiveRunDate,
     isActive,
     latestDate,
+    compareGpuPair ?? null,
   );
 
   // For GPU comparison date picker — use shared availability data from global filters
@@ -1000,6 +1006,7 @@ export function InferenceProvider({
       activePresetId,
       setActivePresetId,
       presetGuardRef,
+      compareGpuPair: compareGpuPair ?? null,
     }),
     [
       activeHwTypes,
@@ -1053,6 +1060,7 @@ export function InferenceProvider({
       removeTrackedConfig,
       clearTrackedConfigs,
       activePresetId,
+      compareGpuPair,
     ],
   );
 

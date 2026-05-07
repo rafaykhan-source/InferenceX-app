@@ -250,6 +250,7 @@ export function createMockInferenceContext(
     activePresetId: null,
     setActivePresetId: namedStub('setActivePresetId'),
     presetGuardRef: { current: false } as React.RefObject<boolean>,
+    compareGpuPair: null,
     ...overrides,
   };
 }

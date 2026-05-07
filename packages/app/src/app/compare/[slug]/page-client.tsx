@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 
 import { track } from '@/lib/analytics';
 import { Card } from '@/components/ui/card';
@@ -74,6 +74,7 @@ export default function ComparePageClient({
 
   const summaryA = ssrSummary[a];
   const summaryB = ssrSummary[b];
+  const compareGpuPair = useMemo(() => [a, b] as const, [a, b]);
   const initialModel = toModel(defaultModel);
   const initialSequence = toSequence(defaultSequence);
   const initialPrecisions = toPrecisions(defaultPrecision);
@@ -84,7 +85,11 @@ export default function ComparePageClient({
       initialSequence={initialSequence}
       initialPrecisions={initialPrecisions}
     >
-      <InferenceProvider activeTab="compare" initialActiveHwTypes={[a, b]}>
+      <InferenceProvider
+        activeTab="compare"
+        initialActiveHwTypes={[a, b]}
+        compareGpuPair={compareGpuPair}
+      >
         <div className="flex flex-col gap-4">
           <InferenceChartDisplay />
           <Card className="flex flex-col gap-3">
