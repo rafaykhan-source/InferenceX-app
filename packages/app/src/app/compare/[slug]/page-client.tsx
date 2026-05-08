@@ -3,19 +3,20 @@
 import Link from 'next/link';
 import { useEffect, useMemo } from 'react';
 
-import { track } from '@/lib/analytics';
-import { Card } from '@/components/ui/card';
-import { GlobalFilterProvider } from '@/components/GlobalFilterContext';
+import type { GPUDataPoint, InterpolatedResult } from '@/components/calculator/types';
+import { useThroughputData } from '@/components/calculator/useThroughputData';
+import { CompareInterpolatedTable } from '@/components/compare/compare-interpolated-table';
+import { useGlobalFilters, GlobalFilterProvider } from '@/components/GlobalFilterContext';
 import { InferenceProvider } from '@/components/inference/InferenceContext';
 import InferenceChartDisplay from '@/components/inference/ui/ChartDisplay';
+import { Card } from '@/components/ui/card';
+import { track } from '@/lib/analytics';
 import { Model, Precision, Sequence } from '@/lib/data-mappings';
 
-interface PairSummary {
-  hardware: string;
-  configCount: number;
-  bestThroughputPerGpu: number | null;
-  bestMedianTtft: number | null;
-  bestMedianTpot: number | null;
+interface SsrTableData {
+  defaultTargets: number[];
+  ssrRows: { target: number; a: InterpolatedResult | null; b: InterpolatedResult | null }[];
+  interactivityRange: { min: number; max: number };
 }
 
 interface ComparePageClientProps {
@@ -25,18 +26,13 @@ interface ComparePageClientProps {
   defaultModel: string;
   defaultSequence: string | null;
   defaultPrecision: string | null;
-  ssrSummary: Record<string, PairSummary>;
+  ssrTableData: SsrTableData;
   aLabel: string;
   bLabel: string;
   aVendor: string;
   bVendor: string;
   aArch: string;
   bArch: string;
-}
-
-function fmtNum(value: number | null, decimals: number): string {
-  if (value === null) return '—';
-  return value.toFixed(decimals);
 }
 
 function toModel(value: string): Model | undefined {
@@ -60,7 +56,7 @@ export default function ComparePageClient({
   defaultModel,
   defaultSequence,
   defaultPrecision,
-  ssrSummary,
+  ssrTableData,
   aLabel,
   bLabel,
   aVendor,
@@ -72,8 +68,6 @@ export default function ComparePageClient({
     track('compare_page_view', { gpu_a: a, gpu_b: b, default_model: defaultModel });
   }, [a, b, defaultModel]);
 
-  const summaryA = ssrSummary[a];
-  const summaryB = ssrSummary[b];
   const compareGpuPair = useMemo(() => [a, b] as const, [a, b]);
   const initialModel = toModel(defaultModel);
   const initialSequence = toSequence(defaultSequence);
@@ -91,7 +85,6 @@ export default function ComparePageClient({
         compareGpuPair={compareGpuPair}
       >
         <div className="flex flex-col gap-4">
-          <InferenceChartDisplay />
           <Card className="flex flex-col gap-3">
             <header>
               <div className="text-xs uppercase tracking-wider text-muted-foreground">
@@ -101,7 +94,7 @@ export default function ComparePageClient({
               <p className="mt-2 text-sm text-muted-foreground max-w-3xl">
                 Head-to-head AI inference benchmark comparison of <strong>{aLabel}</strong> (
                 {aVendor} {aArch}) and <strong>{bLabel}</strong> ({bVendor} {bArch}). Latency,
-                throughput, and cost across LLM workloads. Use the chart controls above to switch
+                throughput, and cost across LLM workloads. Use the chart controls below to switch
                 models, sequences, precisions, and metrics — same interactions as{' '}
                 <Link href="/" className="underline hover:text-primary">
                   the main inference chart
@@ -109,86 +102,79 @@ export default function ComparePageClient({
                 .
               </p>
             </header>
-            <PairSummaryGrid
+            <CompareTableSection
               a={a}
               b={b}
               aLabel={aLabel}
               bLabel={bLabel}
-              summaryA={summaryA}
-              summaryB={summaryB}
-              defaultModel={defaultModel}
+              ssrTableData={ssrTableData}
             />
           </Card>
+          <InferenceChartDisplay />
         </div>
       </InferenceProvider>
     </GlobalFilterProvider>
   );
 }
 
-function PairSummaryGrid({
+function CompareTableSection({
   a,
   b,
   aLabel,
   bLabel,
-  summaryA,
-  summaryB,
-  defaultModel,
+  ssrTableData,
 }: {
   a: string;
   b: string;
   aLabel: string;
   bLabel: string;
-  summaryA: PairSummary | undefined;
-  summaryB: PairSummary | undefined;
-  defaultModel: string;
+  ssrTableData: SsrTableData;
 }) {
-  if (!summaryA || !summaryB) return null;
+  const { effectiveSequence, effectivePrecisions, selectedRunDate, selectedModel } =
+    useGlobalFilters();
 
-  const rows: { label: string; aVal: string; bVal: string }[] = [
-    {
-      label: 'Best throughput / GPU (tok/s)',
-      aVal: fmtNum(summaryA.bestThroughputPerGpu, 1),
-      bVal: fmtNum(summaryB.bestThroughputPerGpu, 1),
-    },
-    {
-      label: 'Best median TTFT (s)',
-      aVal: fmtNum(summaryA.bestMedianTtft, 3),
-      bVal: fmtNum(summaryB.bestMedianTtft, 3),
-    },
-    {
-      label: 'Best median TPOT (s)',
-      aVal: fmtNum(summaryA.bestMedianTpot, 4),
-      bVal: fmtNum(summaryB.bestMedianTpot, 4),
-    },
-    {
-      label: 'Benchmark configurations',
-      aVal: String(summaryA.configCount),
-      bVal: String(summaryB.configCount),
-    },
-  ];
+  const { gpuDataByGroupKey, ranges, hasData } = useThroughputData(
+    selectedModel,
+    effectiveSequence,
+    effectivePrecisions,
+    selectedRunDate,
+  );
+
+  // Extract GPUDataPoint arrays for just the two GPUs in the pair.
+  // The group keys may be plain hwKeys or composite (hwKey__precision).
+  // Match prefix since keys include framework (e.g., "h200_sglang", "h100_dynamo-trt").
+  const { pointsA, pointsB } = useMemo(() => {
+    const pA: GPUDataPoint[] = [];
+    const pB: GPUDataPoint[] = [];
+    for (const [groupKey, points] of Object.entries(gpuDataByGroupKey)) {
+      // Match if groupKey starts with the base GPU key
+      const hwKey = groupKey.split('__')[0]; // Remove precision suffix if present
+      if (hwKey === a || hwKey.startsWith(`${a}_`)) pA.push(...points);
+      else if (hwKey === b || hwKey.startsWith(`${b}_`)) pB.push(...points);
+    }
+    return { pointsA: pA, pointsB: pB };
+  }, [gpuDataByGroupKey, a, b]);
+
+  const clientRange = hasData ? ranges.interactivity : ssrTableData.interactivityRange;
+
+  if (ssrTableData.defaultTargets.length === 0) {
+    return (
+      <div className="border border-border/50 rounded-md px-4 py-3 text-sm text-muted-foreground bg-muted/30">
+        No interpolated comparison data available for the default model. Use the chart controls
+        below to select a model with benchmark data for both GPUs.
+      </div>
+    );
+  }
 
   return (
-    <div className="border border-border/50 rounded-md overflow-hidden">
-      <div className="px-3 py-2 text-xs text-muted-foreground bg-muted/30 border-b border-border/50">
-        Latest results for {defaultModel} (best across all configurations) — use the chart filters
-        above to change model, sequence, and precision.
-      </div>
-      <div className="grid grid-cols-3 text-sm" data-testid={`compare-summary-${a}-${b}`}>
-        <div className="px-3 py-2 font-medium text-muted-foreground border-r border-border/40">
-          Metric
-        </div>
-        <div className="px-3 py-2 font-medium border-r border-border/40">{aLabel}</div>
-        <div className="px-3 py-2 font-medium">{bLabel}</div>
-        {rows.map((row) => (
-          <div key={row.label} className="contents">
-            <div className="px-3 py-2 text-muted-foreground border-t border-border/40 border-r">
-              {row.label}
-            </div>
-            <div className="px-3 py-2 border-t border-border/40 border-r font-mono">{row.aVal}</div>
-            <div className="px-3 py-2 border-t border-border/40 font-mono">{row.bVal}</div>
-          </div>
-        ))}
-      </div>
-    </div>
+    <CompareInterpolatedTable
+      aLabel={aLabel}
+      bLabel={bLabel}
+      ssrRows={ssrTableData.ssrRows}
+      defaultTargets={ssrTableData.defaultTargets}
+      interactivityRange={clientRange}
+      gpuDataPointsA={pointsA}
+      gpuDataPointsB={pointsB}
+    />
   );
 }

@@ -4,6 +4,7 @@ import { notFound, redirect } from 'next/navigation';
 import {
   HW_REGISTRY,
   islOslToSequence,
+  sequenceToIslOsl,
   SITE_NAME,
   SITE_URL,
 } from '@semianalysisai/inferencex-constants';
@@ -11,7 +12,11 @@ import { JSON_MODE, getDb } from '@semianalysisai/inferencex-db/connection';
 import * as jsonProvider from '@semianalysisai/inferencex-db/json-provider';
 import { getLatestBenchmarks } from '@semianalysisai/inferencex-db/queries/benchmarks';
 
+import { interpolateForGPU } from '@/components/calculator/interpolation';
+import type { GPUDataPoint, InterpolatedResult } from '@/components/calculator/types';
 import { cachedQuery } from '@/lib/api-cache';
+import { rowToAggDataEntry } from '@/lib/benchmark-transform';
+import { getHardwareKey } from '@/lib/chart-utils';
 import {
   allCanonicalComparePairs,
   canonicalCompareSlug,
@@ -19,6 +24,7 @@ import {
   parseCompareSlug,
   toCompareSlug,
 } from '@/lib/compare-slug';
+import { getHardwareConfig, getGpuSpecs } from '@/lib/constants';
 
 import ComparePageClient from './page-client';
 
@@ -148,12 +154,168 @@ function summarize(rows: Awaited<ReturnType<typeof getCachedBenchmarks>>, hw: st
   };
 }
 
+/** Cost per million tokens: costPerHour / (tokPerSec * 3600 / 1_000_000) */
+const computeGpuCost = (costPerHour: number, tps: number) =>
+  costPerHour && tps > 0 ? costPerHour / ((tps * 3600) / 1_000_000) : 0;
+
+export interface SsrInterpolatedRow {
+  target: number;
+  a: InterpolatedResult | null;
+  b: InterpolatedResult | null;
+}
+
+/**
+ * Build GPUDataPoints for a single hwKey from raw benchmark rows, matching the
+ * same transform logic as useThroughputData (but callable on the server).
+ */
+function buildGpuDataPoints(
+  rows: Awaited<ReturnType<typeof getCachedBenchmarks>>,
+  hw: string,
+  isl: number,
+  osl: number,
+  precision: string,
+): GPUDataPoint[] {
+  const points: GPUDataPoint[] = [];
+  for (const row of rows) {
+    if (row.hardware !== hw) continue;
+    if (row.isl !== isl || row.osl !== osl) continue;
+    if (row.precision !== precision) continue;
+
+    const entry = rowToAggDataEntry(row);
+    const hwKey = getHardwareKey(entry);
+    if (!getHardwareConfig(hwKey)) continue;
+
+    const m = row.metrics;
+    const tput = m.tput_per_gpu ?? 0;
+    const outputTput = m.output_tput_per_gpu ?? tput;
+    const inputTput = m.input_tput_per_gpu ?? 0;
+    const specs = getGpuSpecs(hwKey);
+    const power = specs.power;
+
+    points.push({
+      hwKey,
+      interactivity: m.median_intvty ?? 0,
+      throughput: tput,
+      outputThroughput: outputTput,
+      inputThroughput: inputTput,
+      concurrency: row.conc,
+      tp: row.decode_tp,
+      precision: row.precision,
+      ep: row.decode_ep,
+      dp_attention: row.decode_dp_attention,
+      disagg: row.disagg,
+      costh: computeGpuCost(specs.costh, tput),
+      costn: computeGpuCost(specs.costn, tput),
+      costr: computeGpuCost(specs.costr, tput),
+      costhi: computeGpuCost(specs.costh, inputTput),
+      costni: computeGpuCost(specs.costn, inputTput),
+      costri: computeGpuCost(specs.costr, inputTput),
+      costhOutput: computeGpuCost(specs.costh, outputTput),
+      costnOutput: computeGpuCost(specs.costn, outputTput),
+      costrOutput: computeGpuCost(specs.costr, outputTput),
+      tpPerMw: power && power > 0 ? (tput * 1000) / power : 0,
+      inputTpPerMw: power && power > 0 ? (inputTput * 1000) / power : 0,
+      outputTpPerMw: power && power > 0 ? (outputTput * 1000) / power : 0,
+    });
+  }
+  return points;
+}
+
+function interactivityRangeOf(pts: GPUDataPoint[]): { min: number; max: number } | null {
+  if (pts.length === 0) return null;
+  let min = Infinity;
+  let max = -Infinity;
+  for (const p of pts) {
+    if (p.interactivity < min) min = p.interactivity;
+    if (p.interactivity > max) max = p.interactivity;
+  }
+  return { min, max };
+}
+
+/**
+ * Pre-compute interpolated table data for the GPU pair at several interactivity
+ * levels. Picks 3 targets (25th, 50th, 75th percentile) within the overlapping
+ * interactivity range of both GPUs.
+ */
+function computeCompareTableData(
+  rows: Awaited<ReturnType<typeof getCachedBenchmarks>>,
+  a: string,
+  b: string,
+  sequence: string | null,
+  precision: string | null,
+): {
+  defaultTargets: number[];
+  ssrRows: SsrInterpolatedRow[];
+  interactivityRange: { min: number; max: number };
+} {
+  const empty = { defaultTargets: [], ssrRows: [], interactivityRange: { min: 0, max: 100 } };
+  if (!sequence || !precision) return empty;
+
+  const islOsl = sequenceToIslOsl(sequence);
+  if (!islOsl) return empty;
+
+  const pointsA = buildGpuDataPoints(rows, a, islOsl.isl, islOsl.osl, precision);
+  const pointsB = buildGpuDataPoints(rows, b, islOsl.isl, islOsl.osl, precision);
+
+  if (pointsA.length === 0 && pointsB.length === 0) return empty;
+
+  const rangeA = interactivityRangeOf(pointsA);
+  const rangeB = interactivityRangeOf(pointsB);
+
+  // Use the overlapping range if both GPUs have data, otherwise the wider range
+  let globalMin: number, globalMax: number;
+  if (rangeA && rangeB) {
+    globalMin = Math.max(rangeA.min, rangeB.min);
+    globalMax = Math.min(rangeA.max, rangeB.max);
+    // If no overlap, fall back to union
+    if (globalMin >= globalMax) {
+      globalMin = Math.min(rangeA.min, rangeB.min);
+      globalMax = Math.max(rangeA.max, rangeB.max);
+    }
+  } else {
+    const r = rangeA ?? rangeB!;
+    globalMin = r.min;
+    globalMax = r.max;
+  }
+
+  const interactivityRange = {
+    min: Math.ceil(globalMin),
+    max: Math.floor(globalMax),
+  };
+
+  // Pick 3 target levels at 25th, 50th, 75th percentile
+  const span = globalMax - globalMin;
+  const defaultTargets =
+    span > 0
+      ? [
+          Math.round(globalMin + span * 0.25),
+          Math.round(globalMin + span * 0.5),
+          Math.round(globalMin + span * 0.75),
+        ]
+      : [Math.round(globalMin)];
+
+  const ssrRows: SsrInterpolatedRow[] = defaultTargets.map((target) => ({
+    target,
+    a:
+      pointsA.length > 0
+        ? interpolateForGPU(pointsA, target, 'interactivity_to_throughput', 'costh')
+        : null,
+    b:
+      pointsB.length > 0
+        ? interpolateForGPU(pointsB, target, 'interactivity_to_throughput', 'costh')
+        : null,
+  }));
+
+  return { defaultTargets, ssrRows, interactivityRange };
+}
+
 function buildJsonLd(
   a: string,
   b: string,
   url: string,
   summaryA: PairSummary,
   summaryB: PairSummary,
+  ssrRows: SsrInterpolatedRow[],
 ) {
   const entryFor = (key: string, summary: PairSummary, position: number) => {
     const meta = HW_REGISTRY[key];
@@ -202,15 +364,66 @@ function buildJsonLd(
     };
   };
 
+  const aLabel = HW_REGISTRY[a]?.label ?? a.toUpperCase();
+  const bLabel = HW_REGISTRY[b]?.label ?? b.toUpperCase();
+
+  const comparisonRows = ssrRows
+    .filter((row) => row.a || row.b)
+    .map((row) => {
+      const metrics: { name: string; value: string }[] = [
+        { name: 'Target Interactivity (tok/s/user)', value: String(row.target) },
+      ];
+      if (row.a) {
+        metrics.push(
+          { name: `${aLabel} Throughput (tok/s/gpu)`, value: row.a.value.toFixed(1) },
+          { name: `${aLabel} Cost ($/M tok)`, value: row.a.cost.toFixed(3) },
+          { name: `${aLabel} tok/s/MW`, value: row.a.tpPerMw.toFixed(0) },
+          { name: `${aLabel} Concurrency`, value: String(Math.round(row.a.concurrency)) },
+        );
+      }
+      if (row.b) {
+        metrics.push(
+          { name: `${bLabel} Throughput (tok/s/gpu)`, value: row.b.value.toFixed(1) },
+          { name: `${bLabel} Cost ($/M tok)`, value: row.b.cost.toFixed(3) },
+          { name: `${bLabel} tok/s/MW`, value: row.b.tpPerMw.toFixed(0) },
+          { name: `${bLabel} Concurrency`, value: String(Math.round(row.b.concurrency)) },
+        );
+      }
+      return {
+        '@type': 'Observation',
+        name: `Comparison at ${row.target} tok/s/user interactivity`,
+        variableMeasured: metrics.map((m) => ({
+          '@type': 'PropertyValue',
+          name: m.name,
+          value: m.value,
+        })),
+      };
+    });
+
   return {
     '@context': 'https://schema.org',
-    '@type': 'ItemList',
-    name: `${compareDisplayLabel(a, b)} Inference Benchmark`,
-    description: `Head-to-head AI inference benchmark comparison of ${HW_REGISTRY[a]?.label ?? a} and ${HW_REGISTRY[b]?.label ?? b} across LLM workloads.`,
-    url,
-    itemListOrder: 'https://schema.org/ItemListOrderAscending',
-    numberOfItems: 2,
-    itemListElement: [entryFor(a, summaryA, 1), entryFor(b, summaryB, 2)],
+    '@graph': [
+      {
+        '@type': 'ItemList',
+        name: `${compareDisplayLabel(a, b)} Inference Benchmark`,
+        description: `Head-to-head AI inference benchmark comparison of ${aLabel} and ${bLabel} across LLM workloads.`,
+        url,
+        itemListOrder: 'https://schema.org/ItemListOrderAscending',
+        numberOfItems: 2,
+        itemListElement: [entryFor(a, summaryA, 1), entryFor(b, summaryB, 2)],
+      },
+      ...(comparisonRows.length > 0
+        ? [
+            {
+              '@type': 'Dataset',
+              name: `${aLabel} vs ${bLabel} Interpolated Benchmark Comparison`,
+              description: `Interpolated throughput, cost, power efficiency, and concurrency for ${aLabel} and ${bLabel} at matched interactivity levels.`,
+              url,
+              hasPart: comparisonRows,
+            },
+          ]
+        : []),
+    ],
   };
 }
 
@@ -233,8 +446,16 @@ export default async function ComparePage({ params }: Props) {
     pair.b,
   );
 
+  const { defaultTargets, ssrRows, interactivityRange } = computeCompareTableData(
+    rows,
+    pair.a,
+    pair.b,
+    defaultSequence,
+    defaultPrecision,
+  );
+
   const url = `${SITE_URL}/compare/${canonical}`;
-  const jsonLd = buildJsonLd(pair.a, pair.b, url, summaryA, summaryB);
+  const jsonLd = buildJsonLd(pair.a, pair.b, url, summaryA, summaryB, ssrRows);
   const label = compareDisplayLabel(pair.a, pair.b);
   const aMeta = HW_REGISTRY[pair.a];
   const bMeta = HW_REGISTRY[pair.b];
@@ -249,10 +470,7 @@ export default async function ComparePage({ params }: Props) {
         defaultModel={DEFAULT_MODEL_DISPLAY}
         defaultSequence={defaultSequence}
         defaultPrecision={defaultPrecision}
-        ssrSummary={{
-          [pair.a]: summaryA,
-          [pair.b]: summaryB,
-        }}
+        ssrTableData={{ defaultTargets, ssrRows, interactivityRange }}
         aLabel={aMeta?.label ?? pair.a.toUpperCase()}
         bLabel={bMeta?.label ?? pair.b.toUpperCase()}
         aVendor={aMeta?.vendor ?? ''}
