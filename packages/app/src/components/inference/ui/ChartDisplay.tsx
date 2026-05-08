@@ -663,7 +663,6 @@ export default function ChartDisplay() {
               yLabel={currentYLabel}
               logScale={logScale}
               selectedPrecisions={selectedPrecisions}
-              selectedModel={selectedModel}
             />
           </div>
           <div className="relative">
@@ -679,7 +678,6 @@ export default function ChartDisplay() {
               yLabel={currentXLabel}
               logScale={logScale}
               selectedPrecisions={selectedPrecisions}
-              selectedModel={selectedModel}
             />
           </div>
         </DialogContent>
