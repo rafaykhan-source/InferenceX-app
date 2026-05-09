@@ -76,8 +76,12 @@ describe('GPU Comparison Card', () => {
     cy.get('[data-testid="gpu-comparison-select-1"]').click();
     cy.get('[role="option"]').first().click();
 
+    // Pick the second available option (eq(1)) so the two GPUs come from
+    // different hardware families with distinct dates — picking .first()
+    // can land on the same-base MTP variant that shares a single date,
+    // leaving dateRangeAvailableDates < 2 and "All Time" still disabled.
     cy.get('[data-testid="gpu-comparison-select-2"]').click();
-    cy.get('[role="option"]').first().click();
+    cy.get('[role="option"]').eq(1).click();
 
     cy.get('[data-testid="date-shortcut-all-time"]').should('not.be.disabled');
     cy.get('#gpu-comparison-date-picker').should('not.be.disabled');
