@@ -37,32 +37,59 @@ export interface QuickDateRange {
   range: DateRange;
 }
 
-/** Compute the standard quick-select date ranges from a sorted list of available dates. */
-export function getQuickDateRanges(availableDates: string[]): QuickDateRange[] {
-  if (availableDates.length < 2) return [];
-  const allTime: QuickDateRange = {
-    label: 'All Time',
-    range: { startDate: availableDates[0], endDate: availableDates.at(-1)! },
-  };
+export interface QuickDateRangeShortcut {
+  id: 'all-time' | 'last-90-days' | 'last-30-days';
+  label: string;
+  range: DateRange | null;
+  /** True when this shortcut has a valid range (at least two dates in scope). */
+  isAvailable: boolean;
+}
+
+/** All three comparison shortcuts, with availability driven by `availableDates` (e.g. intersection for selected GPUs). */
+export function getQuickDateRangeShortcuts(availableDates: string[]): QuickDateRangeShortcut[] {
+  const allTimeAvailable = availableDates.length >= 2;
+  const allTimeRange: DateRange | null = allTimeAvailable
+    ? { startDate: availableDates[0], endDate: availableDates.at(-1)! }
+    : null;
+
   const rolling = (
     [
-      { label: 'Last 90 Days', days: 90 },
-      { label: 'Last 30 Days', days: 30 },
+      { id: 'last-90-days' as const, label: 'Last 90 Days', days: 90 },
+      { id: 'last-30-days' as const, label: 'Last 30 Days', days: 30 },
     ] as const
-  )
-    .map(({ label, days }): QuickDateRange | null => {
-      const cutoff = new Date();
-      cutoff.setDate(cutoff.getDate() - days);
-      const cutoffStr = cutoff.toISOString().slice(0, 10);
-      const filtered = availableDates.filter((d) => d >= cutoffStr);
-      if (filtered.length < 2) return null;
-      return {
-        label,
-        range: { startDate: filtered[0], endDate: filtered.at(-1)! },
-      };
-    })
-    .filter((x): x is QuickDateRange => x !== null);
-  return [allTime, ...rolling];
+  ).map(({ id, label, days }) => {
+    if (availableDates.length < 2) {
+      return { id, label, range: null, isAvailable: false };
+    }
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+    const cutoffStr = cutoff.toISOString().slice(0, 10);
+    const filtered = availableDates.filter((d) => d >= cutoffStr);
+    const ok = filtered.length >= 2;
+    return {
+      id,
+      label,
+      range: ok ? { startDate: filtered[0], endDate: filtered.at(-1)! } : null,
+      isAvailable: ok,
+    };
+  });
+
+  return [
+    {
+      id: 'all-time',
+      label: 'All Time',
+      range: allTimeRange,
+      isAvailable: allTimeAvailable,
+    },
+    ...rolling,
+  ];
+}
+
+/** Quick-select entries that are usable in the date picker dialog (omit unavailable). */
+export function getQuickDateRanges(availableDates: string[]): QuickDateRange[] {
+  return getQuickDateRangeShortcuts(availableDates)
+    .filter((s) => s.isAvailable && s.range)
+    .map((s) => ({ label: s.label, range: s.range! }));
 }
 
 export interface DateRangePickerProps {

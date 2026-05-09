@@ -75,6 +75,8 @@ describe('GpuComparisonCard', () => {
     cy.get('#gpu-comparison-date-picker').should('be.disabled');
     cy.get('[data-testid="date-range-shortcuts"]').should('be.visible');
     cy.get('[data-testid="date-shortcut-all-time"]').should('be.disabled');
+    cy.get('[data-testid="date-shortcut-last-90-days"]').should('be.disabled');
+    cy.get('[data-testid="date-shortcut-last-30-days"]').should('be.disabled');
   });
 
   it('shows enabled shortcut buttons that call setSelectedDateRange when two GPUs are selected', () => {

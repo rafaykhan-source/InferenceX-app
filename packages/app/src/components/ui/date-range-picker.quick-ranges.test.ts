@@ -1,6 +1,29 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { getQuickDateRanges } from '@/components/ui/date-range-picker';
+import { getQuickDateRangeShortcuts, getQuickDateRanges } from '@/components/ui/date-range-picker';
+
+describe('getQuickDateRangeShortcuts', () => {
+  it('always returns three entries', () => {
+    expect(getQuickDateRangeShortcuts([])).toHaveLength(3);
+    expect(getQuickDateRangeShortcuts(['2026-01-01'])).toHaveLength(3);
+  });
+
+  it('marks none available when fewer than two dates', () => {
+    const s = getQuickDateRangeShortcuts(['2026-01-01']);
+    expect(s.every((x) => !x.isAvailable)).toBe(true);
+    expect(s.every((x) => x.range === null)).toBe(true);
+  });
+
+  it('matches getQuickDateRanges for the available subset', () => {
+    const dates = ['2025-10-01', '2025-11-01', '2026-01-15'];
+    const shortcuts = getQuickDateRangeShortcuts(dates);
+    const fromHelper = getQuickDateRanges(dates);
+    const fromShortcuts = shortcuts
+      .filter((x) => x.isAvailable && x.range)
+      .map((x) => ({ label: x.label, range: x.range! }));
+    expect(fromShortcuts).toEqual(fromHelper);
+  });
+});
 
 describe('getQuickDateRanges', () => {
   it('returns empty when fewer than 2 dates', () => {

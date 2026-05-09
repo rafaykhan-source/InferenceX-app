@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 import { useInference } from '@/components/inference/InferenceContext';
 import { MAX_COMPARISON_GPUS } from '@/components/inference/utils/normalize-comparison-gpus';
 import { useComparisonChangelogs } from '@/hooks/api/use-comparison-changelogs';
-import { DateRangePicker, getQuickDateRanges } from '@/components/ui/date-range-picker';
+import { DateRangePicker, getQuickDateRangeShortcuts } from '@/components/ui/date-range-picker';
 import { LabelWithTooltip } from '@/components/ui/label-with-tooltip';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -141,6 +141,11 @@ export default function GpuComparisonCard() {
       <TooltipProvider delayDuration={0}>
         <div className="flex flex-col gap-4">
           <h2 className="text-lg font-semibold">GPU Comparison</h2>
+          {!comparisonReady && (
+            <p className="text-sm text-muted-foreground -mt-1" role="status">
+              Select at least two for date range comparison.
+            </p>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {SLOT_INDICES.slice(0, slotCount).map((i) => {
@@ -203,52 +208,54 @@ export default function GpuComparisonCard() {
             </Button>
           )}
 
-          <div
-            className={cn(
-              'flex flex-col space-y-1.5 md:max-w-xl',
-              !comparisonReady && 'opacity-60',
-            )}
-          >
-            <LabelWithTooltip
-              htmlFor="gpu-comparison-date-picker"
-              label="Comparison Date Range"
-              tooltip="Select the start and end dates for the historical comparison. The chart will show performance data for the selected GPU configs across this time range."
-            />
-            <DateRangePicker
-              triggerId="gpu-comparison-date-picker"
-              dateRange={selectedDateRange}
-              onChange={handleDateRangeChange}
-              placeholder="Select date range"
-              availableDates={dateRangeAvailableDates}
-              isCheckingAvailableDates={isCheckingAvailableDates}
-              disabled={!comparisonReady}
-            />
+          <div className="flex flex-col space-y-1.5 md:max-w-xl">
+            <div className={cn('flex flex-col space-y-1.5', !comparisonReady && 'opacity-60')}>
+              <LabelWithTooltip
+                htmlFor="gpu-comparison-date-picker"
+                label="Comparison Date Range"
+                tooltip="Select the start and end dates for the historical comparison. The chart will show performance data for the selected GPU configs across this time range."
+              />
+              <DateRangePicker
+                triggerId="gpu-comparison-date-picker"
+                dateRange={selectedDateRange}
+                onChange={handleDateRangeChange}
+                placeholder="Select date range"
+                availableDates={dateRangeAvailableDates}
+                isCheckingAvailableDates={isCheckingAvailableDates}
+                disabled={!comparisonReady}
+              />
+            </div>
             <div className="flex flex-wrap gap-1.5" data-testid="date-range-shortcuts">
-              {getQuickDateRanges(dateRangeAvailableDates).map(({ label, range }) => {
-                const isActive =
-                  selectedDateRange.startDate === range.startDate &&
-                  selectedDateRange.endDate === range.endDate;
-                return (
-                  <Button
-                    key={label}
-                    type="button"
-                    variant={isActive ? 'secondary' : 'outline'}
-                    size="sm"
-                    disabled={!comparisonReady}
-                    data-testid={`date-shortcut-${label.toLowerCase().replaceAll(/\s+/gu, '-')}`}
-                    onClick={() => {
-                      handleDateRangeChange(range);
-                      track('inference_date_range_quick_select', {
-                        label,
-                        startDate: range.startDate,
-                        endDate: range.endDate,
-                      });
-                    }}
-                  >
-                    {label}
-                  </Button>
-                );
-              })}
+              {getQuickDateRangeShortcuts(dateRangeAvailableDates).map(
+                ({ id, label, range, isAvailable }) => {
+                  const canUse = comparisonReady && isAvailable && Boolean(range);
+                  const isActive =
+                    range !== null &&
+                    selectedDateRange.startDate === range.startDate &&
+                    selectedDateRange.endDate === range.endDate;
+                  return (
+                    <Button
+                      key={id}
+                      type="button"
+                      variant={isActive ? 'secondary' : 'outline'}
+                      size="sm"
+                      disabled={!canUse}
+                      data-testid={`date-shortcut-${id}`}
+                      onClick={() => {
+                        if (!range) return;
+                        handleDateRangeChange(range);
+                        track('inference_date_range_quick_select', {
+                          label,
+                          startDate: range.startDate,
+                          endDate: range.endDate,
+                        });
+                      }}
+                    >
+                      {label}
+                    </Button>
+                  );
+                },
+              )}
             </div>
           </div>
 
