@@ -8,14 +8,18 @@ import {
   SITE_NAME,
   SITE_URL,
 } from '@semianalysisai/inferencex-constants';
-import { JSON_MODE, getDb } from '@semianalysisai/inferencex-db/connection';
+import { FIXTURES_MODE, JSON_MODE, getDb } from '@semianalysisai/inferencex-db/connection';
 import * as jsonProvider from '@semianalysisai/inferencex-db/json-provider';
-import { getLatestBenchmarks } from '@semianalysisai/inferencex-db/queries/benchmarks';
+import {
+  type BenchmarkRow,
+  getLatestBenchmarks,
+} from '@semianalysisai/inferencex-db/queries/benchmarks';
 
 import { interpolateForGPU } from '@/components/calculator/interpolation';
 import type { GPUDataPoint, InterpolatedResult } from '@/components/calculator/types';
 import { cachedQuery } from '@/lib/api-cache';
 import { rowToAggDataEntry } from '@/lib/benchmark-transform';
+import { loadFixture } from '@/lib/test-fixtures';
 import { getHardwareKey } from '@/lib/chart-utils';
 import {
   allCanonicalComparePairs,
@@ -41,6 +45,7 @@ const DEFAULT_MODEL_DISPLAY = 'DeepSeek-R1-0528';
 
 const getCachedBenchmarks = cachedQuery(
   (dbModelKeys: string[]) => {
+    if (FIXTURES_MODE) return Promise.resolve(loadFixture<BenchmarkRow[]>('benchmarks'));
     if (JSON_MODE) return Promise.resolve(jsonProvider.getLatestBenchmarks(dbModelKeys));
     return getLatestBenchmarks(getDb(), dbModelKeys);
   },
