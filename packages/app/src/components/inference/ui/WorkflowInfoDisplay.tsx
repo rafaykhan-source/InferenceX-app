@@ -94,11 +94,11 @@ export default function WorkflowInfoDisplay({
   };
 
   const shellClass = cn(
-    controlsDisabled && 'pointer-events-none cursor-not-allowed select-none opacity-50 saturate-50',
+    controlsDisabled && 'cursor-not-allowed select-none opacity-50 saturate-50',
   );
   const shellA11y = controlsDisabled
     ? {
-        role: 'group' as const,
+        inert: true as unknown as boolean,
         'aria-disabled': true as const,
         title:
           'Official run date and run list are fixed while GPU comparison is active. Clear a GPU slot in GPU Comparison to change them.',

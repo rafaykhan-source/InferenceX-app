@@ -133,7 +133,7 @@ describe('GpuComparisonCard', () => {
     cy.get('[data-testid="gpu-comparison-add-slot"]').should('not.exist');
   });
 
-  it('removes an optional slot when its X button is clicked', () => {
+  it('calls setSelectedGPUs without the removed GPU when its X button is clicked', () => {
     mountWithProviders(<GpuComparisonCard />, {
       inference: {
         selectedGPUs: ['h100_sglang', 'b200_sglang', 'mi300x_sglang'],
@@ -144,7 +144,9 @@ describe('GpuComparisonCard', () => {
 
     cy.get('[data-testid="gpu-comparison-select-3"]').should('be.visible');
     cy.get('[data-testid="gpu-comparison-clear-3"]').click();
-    cy.get('[data-testid="gpu-comparison-select-3"]').should('not.exist');
-    cy.get('@setSelectedGPUs').should('have.been.called');
+    cy.get('@setSelectedGPUs').should(
+      'have.been.calledWith',
+      Cypress.sinon.match((v: string[]) => v.length === 2 && !v.includes('mi300x_sglang')),
+    );
   });
 });

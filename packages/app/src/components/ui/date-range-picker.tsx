@@ -46,7 +46,10 @@ export interface QuickDateRangeShortcut {
 }
 
 /** All three comparison shortcuts, with availability driven by `availableDates` (e.g. intersection for selected GPUs). */
-export function getQuickDateRangeShortcuts(availableDates: string[]): QuickDateRangeShortcut[] {
+export function getQuickDateRangeShortcuts(
+  availableDates: string[],
+  now?: Date,
+): QuickDateRangeShortcut[] {
   const allTimeAvailable = availableDates.length >= 2;
   const allTimeRange: DateRange | null = allTimeAvailable
     ? { startDate: availableDates[0], endDate: availableDates.at(-1)! }
@@ -61,7 +64,7 @@ export function getQuickDateRangeShortcuts(availableDates: string[]): QuickDateR
     if (availableDates.length < 2) {
       return { id, label, range: null, isAvailable: false };
     }
-    const cutoff = new Date();
+    const cutoff = new Date(now ?? Date.now());
     cutoff.setDate(cutoff.getDate() - days);
     const cutoffStr = cutoff.toISOString().slice(0, 10);
     const filtered = availableDates.filter((d) => d >= cutoffStr);
@@ -86,8 +89,8 @@ export function getQuickDateRangeShortcuts(availableDates: string[]): QuickDateR
 }
 
 /** Quick-select entries that are usable in the date picker dialog (omit unavailable). */
-export function getQuickDateRanges(availableDates: string[]): QuickDateRange[] {
-  return getQuickDateRangeShortcuts(availableDates)
+export function getQuickDateRanges(availableDates: string[], now?: Date): QuickDateRange[] {
+  return getQuickDateRangeShortcuts(availableDates, now)
     .filter((s) => s.isAvailable && s.range)
     .map((s) => ({ label: s.label, range: s.range! }));
 }

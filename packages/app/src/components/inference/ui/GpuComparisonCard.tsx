@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { track } from '@/lib/analytics';
 import { cn } from '@/lib/utils';
@@ -24,14 +24,19 @@ const MIN_SLOTS = 2;
 
 const SLOT_INDICES = Array.from({ length: MAX_COMPARISON_GPUS }, (_, i) => i);
 
-function buildSelectionAfterSlotChange(
+/**
+ * Build the new dense GPU list after a slot value changes.
+ * Keeps selections in visual slot order, dedupes, and strips empties.
+ */
+export function buildSelectionAfterSlotChange(
   selectedGPUs: string[],
+  slotCount: number,
   slotIndex: number,
   rawValue: string,
 ): string[] {
   const v = rawValue.trim();
   const slots: string[] = [];
-  for (let j = 0; j < MAX_COMPARISON_GPUS; j++) {
+  for (let j = 0; j < slotCount; j++) {
     slots.push(j === slotIndex ? v : (selectedGPUs[j] ?? ''));
   }
   const out: string[] = [];
@@ -54,10 +59,7 @@ export default function GpuComparisonCard() {
     setSelectedDateRange,
     dateRangeAvailableDates,
     isCheckingAvailableDates,
-    selectedModel,
-    selectedSequence,
     selectedPrecisions,
-    selectedYAxisMetric,
     selectedDates,
     setSelectedDates,
   } = useInference();
@@ -72,6 +74,15 @@ export default function GpuComparisonCard() {
 
   const [slotCount, setSlotCount] = useState(() => Math.max(MIN_SLOTS, selectedGPUs.length));
 
+  // Keep slotCount in sync when GPUs change externally (presets, URL restore)
+  useEffect(() => {
+    if (selectedGPUs.length > slotCount) {
+      setSlotCount(selectedGPUs.length);
+    }
+  }, [selectedGPUs.length, slotCount]);
+
+  const newSlotRef = useRef<number | null>(null);
+
   const optionsBySlot = useMemo(
     () =>
       SLOT_INDICES.map((i) => ({
@@ -83,26 +94,24 @@ export default function GpuComparisonCard() {
     [availableGPUs, selectedGPUs],
   );
 
-  const trackCombinedFilters = () => {
-    if (selectedModel && selectedSequence && selectedPrecisions.length > 0 && selectedYAxisMetric) {
-      track('inference_filters_changed', {
-        model: selectedModel,
-        sequence: selectedSequence,
-        precision: selectedPrecisions.join(','),
-        yAxisMetric: selectedYAxisMetric,
-      });
+  // Auto-focus newly added slot
+  useEffect(() => {
+    if (newSlotRef.current !== null) {
+      const id = `gpu-comparison-slot-${newSlotRef.current + 1}`;
+      const el = document.querySelector<HTMLElement>(`#${id}`);
+      if (el) el.focus();
+      newSlotRef.current = null;
     }
-  };
+  });
 
   const handleSlotChange = (slotIndex: number, value: string) => {
-    const next = buildSelectionAfterSlotChange(selectedGPUs, slotIndex, value);
+    const next = buildSelectionAfterSlotChange(selectedGPUs, slotCount, slotIndex, value);
     setSelectedGPUs(next);
     track('inference_gpu_comparison_slot_selected', {
       slot: slotIndex + 1,
       value: value || '',
       gpus: next.join(','),
     });
-    setTimeout(trackCombinedFilters, 0);
   };
 
   const handleDateRangeChange = (range: { startDate: string; endDate: string }) => {
@@ -128,24 +137,30 @@ export default function GpuComparisonCard() {
   };
 
   const addSlot = () => {
-    setSlotCount((c) => Math.min(MAX_COMPARISON_GPUS, c + 1));
-    track('inference_gpu_comparison_slot_added', { newSlotCount: slotCount + 1 });
+    const nextCount = Math.min(MAX_COMPARISON_GPUS, slotCount + 1);
+    setSlotCount(nextCount);
+    newSlotRef.current = nextCount - 1;
+    track('inference_gpu_comparison_slot_added', { newSlotCount: nextCount });
   };
 
   const canAddSlot = slotCount < MAX_COMPARISON_GPUS && slotCount < availableGPUs.length;
 
-  const slotDisabled = (i: number) => i > 0 && selectedGPUs.length < i;
+  // Slot 0 is always enabled. Later slots are disabled only if they're empty
+  // and there's still a gap in an earlier slot (forces top-down filling).
+  const slotDisabled = (i: number): boolean => {
+    if (i === 0) return false;
+    if (selectedGPUs[i]) return false;
+    return !selectedGPUs[i - 1];
+  };
 
   return (
     <Card data-testid="gpu-comparison-card">
       <TooltipProvider delayDuration={0}>
         <div className="flex flex-col gap-4">
           <h2 className="text-lg font-semibold">GPU Comparison</h2>
-          {!comparisonReady && (
-            <p className="text-sm text-muted-foreground -mt-1" role="status">
-              Select at least two for date range comparison.
-            </p>
-          )}
+          <p className="text-sm text-muted-foreground -mt-1" role="status">
+            Select at least two for date range comparison.
+          </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {SLOT_INDICES.slice(0, slotCount).map((i) => {

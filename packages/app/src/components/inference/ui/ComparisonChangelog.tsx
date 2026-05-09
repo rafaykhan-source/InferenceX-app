@@ -8,6 +8,10 @@ import { ExternalLinkIcon } from '@/components/ui/external-link-icon';
 
 import type { ComparisonChangelog as ComparisonChangelogType } from '@/hooks/api/use-comparison-changelogs';
 import {
+  buildDatesOnComparisonChart,
+  getAddableChangelogDates,
+} from '@/components/inference/utils/comparison-changelog-dates';
+import {
   configKeyMatchesHwKey,
   formatChangelogDescription,
 } from '@/components/inference/utils/changelogFormatters';
@@ -45,14 +49,14 @@ export default function ComparisonChangelog({
   firstAvailableDate,
   expandWhenActive = false,
 }: ComparisonChangelogProps) {
-  const [isExpanded, setIsExpanded] = useState(true);
-  const wasExpandActiveRef = useRef(false);
+  const [isExpanded, setIsExpanded] = useState(expandWhenActive);
+  const prevExpandActiveRef = useRef(expandWhenActive);
 
   useEffect(() => {
-    if (expandWhenActive && !wasExpandActiveRef.current) {
+    if (expandWhenActive && !prevExpandActiveRef.current) {
       setIsExpanded(true);
     }
-    wasExpandActiveRef.current = expandWhenActive;
+    prevExpandActiveRef.current = expandWhenActive;
   }, [expandWhenActive]);
 
   // Filter changelog entries to only show those matching selected GPUs and precisions.
@@ -92,15 +96,13 @@ export default function ComparisonChangelog({
       .toSorted((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }, [changelogs, selectedGPUs, selectedPrecisions, pinnedDates]);
 
-  const datesOnChart = useMemo(() => {
-    const set = new Set(selectedDates);
-    if (selectedDateRange.startDate) set.add(selectedDateRange.startDate);
-    if (selectedDateRange.endDate) set.add(selectedDateRange.endDate);
-    return set;
-  }, [selectedDates, selectedDateRange]);
+  const datesOnChart = useMemo(
+    () => buildDatesOnComparisonChart(selectedDates, selectedDateRange),
+    [selectedDates, selectedDateRange],
+  );
 
   const addableDates = useMemo(
-    () => filteredChangelogs.map((c) => c.date).filter((d) => !datesOnChart.has(d)),
+    () => getAddableChangelogDates(filteredChangelogs, datesOnChart),
     [filteredChangelogs, datesOnChart],
   );
 

@@ -638,8 +638,14 @@ export function InferenceProvider({
     }
   }, [dateRangeAvailableDates]);
 
-  // Auto-default to max date range when GPU comparison becomes ready
+  // Auto-default to max date range once when GPU comparison first becomes ready.
+  // Uses a ref to fire only on the transition from <2 GPUs to >=2, avoiding a loop
+  // when the user intentionally clears the date range.
+  const prevGpuCountRef = useRef(selectedGPUs.length);
   useEffect(() => {
+    const wasBelow = prevGpuCountRef.current < 2;
+    prevGpuCountRef.current = selectedGPUs.length;
+    if (!wasBelow) return;
     if (selectedGPUs.length < 2) return;
     if (selectedDateRange.startDate && selectedDateRange.endDate) return;
     if (dateRangeAvailableDates.length < 2) return;
