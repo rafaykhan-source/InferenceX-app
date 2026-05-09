@@ -67,6 +67,7 @@ describe('Compare Interpolated Table', () => {
   it('displays the descriptive header text', () => {
     cy.get('[data-testid="compare-interpolated-table"]')
       .parent()
+      .parent()
       .should('contain.text', 'Interpolated from real benchmark data');
   });
 });
