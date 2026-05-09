@@ -1,4 +1,5 @@
 import InferenceChartControls from '@/components/inference/ui/ChartControls';
+import GpuComparisonCard from '@/components/inference/ui/GpuComparisonCard';
 import { mountWithProviders } from '../support/test-utils';
 
 describe('Inference ChartControls', () => {
@@ -41,39 +42,43 @@ describe('Inference ChartControls', () => {
     cy.get('@setSelectedYAxisMetric').should('have.been.calledOnce');
   });
 
-  it('hides the GPU comparison section when no GPUs are selected', () => {
-    // Default mock: selectedGPUs = [] — GPU date range pickers should not render
+  it('does not render GPU comparison date controls (moved to GpuComparisonCard)', () => {
     cy.contains('Comparison Date Range').should('not.exist');
-    cy.contains('Intermediary Dates').should('not.exist');
-  });
-
-  it('renders the GPU config multi-select', () => {
-    // The GPU Config label should be present (hideGpuComparison defaults to false)
-    cy.contains('GPU Config').should('be.visible');
-    cy.get('[data-testid="gpu-multiselect"]').should('be.visible');
+    cy.contains('GPU Comparison').should('not.exist');
   });
 });
 
-describe('Inference ChartControls with GPUs selected', () => {
-  it('shows the date range picker when GPUs are selected', () => {
-    mountWithProviders(<InferenceChartControls />, {
+describe('GpuComparisonCard', () => {
+  it('renders two GPU slot selectors and no date range until two GPUs are selected', () => {
+    mountWithProviders(<GpuComparisonCard />, {
       inference: {
-        selectedGPUs: ['h100'],
+        selectedGPUs: [],
+        availableGPUs: [
+          { value: 'h100_sglang', label: 'H100 SGLang' },
+          { value: 'b200_sglang', label: 'B200 SGLang' },
+        ],
+      },
+    });
+
+    cy.get('[data-testid="gpu-comparison-card"]').should('be.visible');
+    cy.contains('GPU Comparison').should('be.visible');
+    cy.get('[data-testid="gpu-comparison-select-1"]').should('be.visible');
+    cy.get('[data-testid="gpu-comparison-select-2"]').should('be.visible');
+    cy.contains('Comparison Date Range').should('not.exist');
+  });
+
+  it('shows Comparison Date Range when two GPUs are selected', () => {
+    mountWithProviders(<GpuComparisonCard />, {
+      inference: {
+        selectedGPUs: ['h100_sglang', 'b200_sglang'],
         selectedDateRange: { startDate: '', endDate: '' },
+        availableGPUs: [
+          { value: 'h100_sglang', label: 'H100 SGLang' },
+          { value: 'b200_sglang', label: 'B200 SGLang' },
+        ],
       },
     });
 
     cy.contains('Comparison Date Range').should('be.visible');
-  });
-});
-
-describe('Inference ChartControls with hideGpuComparison', () => {
-  it('hides GPU config selector when hideGpuComparison is true', () => {
-    mountWithProviders(<InferenceChartControls hideGpuComparison />, {
-      inference: {},
-    });
-
-    cy.contains('GPU Config').should('not.exist');
-    cy.get('[data-testid="gpu-multiselect"]').should('not.exist');
   });
 });

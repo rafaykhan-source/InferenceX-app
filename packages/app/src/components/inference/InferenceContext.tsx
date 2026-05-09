@@ -52,6 +52,7 @@ import { clearAllMtpFamilies, resolveMtpToggle } from '@/lib/mtp-exclusion';
 import { filterRunsByModel, getDisplayLabel } from '@/lib/utils';
 
 import { useChartData } from './hooks/useChartData';
+import { normalizeComparisonGpuList } from './utils/normalize-comparison-gpus';
 
 /** @internal Exported for test provider wrapping only. */
 export const InferenceContext = createContext<InferenceChartContextType | undefined>(undefined);
@@ -108,7 +109,8 @@ export function InferenceProvider({
   // ── Inference-specific filter state ─────────────────────────────────────────
   const [selectedGPUs, setSelectedGPUs] = useState<string[]>(() => {
     const urlGpus = getUrlParam('i_gpus');
-    return urlGpus ? urlGpus.split(',').filter(Boolean) : [];
+    const parts = urlGpus ? urlGpus.split(',').filter(Boolean) : [];
+    return normalizeComparisonGpuList(parts);
   });
   const [selectedYAxisMetric, setSelectedYAxisMetric] = useState<string>(
     () => getUrlParam('i_metric') || 'y_tpPerGpu',
@@ -814,7 +816,7 @@ export function InferenceProvider({
       setActivePresetId(preset.id);
       setHighContrast(true);
       if (config.gpus && config.gpus.length > 0) {
-        setSelectedGPUs(config.gpus);
+        setSelectedGPUs(normalizeComparisonGpuList(config.gpus));
         if (config.useDateRange) {
           setSelectedDateRange({ startDate: '', endDate: '' });
           setSelectedDates([]);
