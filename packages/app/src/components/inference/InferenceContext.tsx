@@ -638,6 +638,21 @@ export function InferenceProvider({
     }
   }, [dateRangeAvailableDates]);
 
+  // Auto-default to max date range when GPU comparison becomes ready
+  useEffect(() => {
+    if (selectedGPUs.length < 2) return;
+    if (selectedDateRange.startDate && selectedDateRange.endDate) return;
+    if (dateRangeAvailableDates.length < 2) return;
+    const startDate = dateRangeAvailableDates[0];
+    const endDate = dateRangeAvailableDates.at(-1)!;
+    setSelectedDateRange({ startDate, endDate });
+    track('inference_date_range_auto_defaulted', {
+      startDate,
+      endDate,
+      gpuCount: selectedGPUs.length,
+    });
+  }, [selectedGPUs, selectedDateRange, dateRangeAvailableDates]);
+
   useEffect(() => {
     setActiveDates(allDateIds);
   }, [allDateIds, setActiveDates]);

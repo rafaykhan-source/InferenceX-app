@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 /**
- * Tests for the "add to chart" logic used in ComparisonChangelog.
+ * Tests for pin / date-on-chart logic used in ComparisonChangelog.
  * Verifies date filtering: which dates are on chart, which are addable.
  */
 
@@ -42,7 +42,7 @@ const changelogs: MockChangelog[] = [
   },
 ];
 
-describe('ComparisonChangelog add-to-chart logic', () => {
+describe('ComparisonChangelog pin logic', () => {
   it('all dates are addable when none are selected', () => {
     const onChart = computeDatesOnChart([], { startDate: '', endDate: '' });
     const addable = computeAddableDates(changelogs, onChart);

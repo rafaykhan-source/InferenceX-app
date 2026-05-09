@@ -147,7 +147,7 @@ export default function ChartDisplay() {
     setSelectedE2eXAxisMetric,
   } = useInference();
 
-  const comparisonReady = useMemo(() => selectedGPUs.length === 2, [selectedGPUs]);
+  const comparisonReady = useMemo(() => selectedGPUs.length >= 2, [selectedGPUs]);
 
   const [viewModes, setViewModes] = useState<Record<number, InferenceViewMode>>({});
   const getViewMode = (index: number): InferenceViewMode => viewModes[index] ?? 'chart';
@@ -496,34 +496,24 @@ export default function ChartDisplay() {
                       caption={chartCaption}
                     />
                   ) : (
-                    <div className="relative">
-                      <ScatterGraph
-                        chartId={`chart-${graphIndex}`}
-                        modelLabel={graph.model}
-                        data={graph.data}
-                        xLabel={graph.chartDefinition.x_label}
-                        yLabel={`${
-                          graph.chartDefinition[
-                            `${selectedYAxisMetric}_label` as keyof typeof graph.chartDefinition
-                          ]
-                        }`}
-                        chartDefinition={graph.chartDefinition}
-                        caption={chartCaption}
-                        overlayData={
-                          graph.chartDefinition.chartType === 'e2e'
-                            ? (overlayDataByChartType.e2e ?? undefined)
-                            : (overlayDataByChartType.interactivity ?? undefined)
-                        }
-                      />
-                      {comparisonReady &&
-                        (!selectedDateRange.startDate || !selectedDateRange.endDate) && (
-                          <div className="absolute inset-0 flex items-center justify-center bg-background/60 backdrop-blur-[2px] rounded-lg z-10">
-                            <p className="text-sm font-medium text-muted-foreground bg-background/90 border border-border rounded-md px-4 py-2 shadow-sm">
-                              Select a date range to view GPU comparison
-                            </p>
-                          </div>
-                        )}
-                    </div>
+                    <ScatterGraph
+                      chartId={`chart-${graphIndex}`}
+                      modelLabel={graph.model}
+                      data={graph.data}
+                      xLabel={graph.chartDefinition.x_label}
+                      yLabel={`${
+                        graph.chartDefinition[
+                          `${selectedYAxisMetric}_label` as keyof typeof graph.chartDefinition
+                        ]
+                      }`}
+                      chartDefinition={graph.chartDefinition}
+                      caption={chartCaption}
+                      overlayData={
+                        graph.chartDefinition.chartType === 'e2e'
+                          ? (overlayDataByChartType.e2e ?? undefined)
+                          : (overlayDataByChartType.interactivity ?? undefined)
+                      }
+                    />
                   );
                 })()}
               </Card>

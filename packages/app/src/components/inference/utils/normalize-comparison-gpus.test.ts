@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { normalizeComparisonGpuList } from './normalize-comparison-gpus';
+import { MAX_COMPARISON_GPUS, normalizeComparisonGpuList } from './normalize-comparison-gpus';
 
 describe('normalizeComparisonGpuList', () => {
   it('returns empty for empty input', () => {
@@ -11,8 +11,8 @@ describe('normalizeComparisonGpuList', () => {
     expect(normalizeComparisonGpuList(['a', 'a', 'b'])).toEqual(['a', 'b']);
   });
 
-  it('caps at two distinct keys', () => {
-    expect(normalizeComparisonGpuList(['x', 'y', 'z'])).toEqual(['x', 'y']);
+  it(`caps at ${MAX_COMPARISON_GPUS} distinct keys`, () => {
+    expect(normalizeComparisonGpuList(['w', 'x', 'y', 'z', 'extra'])).toEqual(['w', 'x', 'y', 'z']);
   });
 
   it('skips empty strings', () => {

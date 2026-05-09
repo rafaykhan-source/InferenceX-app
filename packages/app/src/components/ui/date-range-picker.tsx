@@ -32,6 +32,39 @@ export interface DateRange {
   endDate: string;
 }
 
+export interface QuickDateRange {
+  label: string;
+  range: DateRange;
+}
+
+/** Compute the standard quick-select date ranges from a sorted list of available dates. */
+export function getQuickDateRanges(availableDates: string[]): QuickDateRange[] {
+  if (availableDates.length < 2) return [];
+  const allTime: QuickDateRange = {
+    label: 'All Time',
+    range: { startDate: availableDates[0], endDate: availableDates.at(-1)! },
+  };
+  const rolling = (
+    [
+      { label: 'Last 90 Days', days: 90 },
+      { label: 'Last 30 Days', days: 30 },
+    ] as const
+  )
+    .map(({ label, days }): QuickDateRange | null => {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - days);
+      const cutoffStr = cutoff.toISOString().slice(0, 10);
+      const filtered = availableDates.filter((d) => d >= cutoffStr);
+      if (filtered.length < 2) return null;
+      return {
+        label,
+        range: { startDate: filtered[0], endDate: filtered.at(-1)! },
+      };
+    })
+    .filter((x): x is QuickDateRange => x !== null);
+  return [allTime, ...rolling];
+}
+
 export interface DateRangePickerProps {
   dateRange: DateRange;
   onChange: (dateRange: DateRange) => void;
@@ -41,6 +74,10 @@ export interface DateRangePickerProps {
   maxDate?: string;
   availableDates?: string[];
   isCheckingAvailableDates?: boolean;
+  /** When true, the trigger is non-interactive and the dialog cannot open. */
+  disabled?: boolean;
+  /** Sets `id` on the trigger button (e.g. for `Label htmlFor`). */
+  triggerId?: string;
 }
 
 /**
@@ -56,6 +93,8 @@ export function DateRangePicker({
   maxDate,
   availableDates,
   isCheckingAvailableDates,
+  disabled = false,
+  triggerId,
 }: DateRangePickerProps) {
   const [open, setOpen] = useState(false);
   const [tempRange, setTempRange] = useState<DateRange>(dateRange);
@@ -127,6 +166,7 @@ export function DateRangePicker({
 
   // Reset when opening
   const handleOpenChange = (isOpen: boolean) => {
+    if (disabled && isOpen) return;
     track(isOpen ? 'date_range_picker_opened' : 'date_range_picker_closed');
     if (isOpen) {
       setTempRange(dateRange);
@@ -134,6 +174,10 @@ export function DateRangePicker({
     }
     setOpen(isOpen);
   };
+
+  useEffect(() => {
+    if (disabled) setOpen(false);
+  }, [disabled]);
 
   useEffect(() => {
     setError('');
@@ -144,10 +188,14 @@ export function DateRangePicker({
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogTrigger asChild>
           <Button
+            type="button"
+            id={triggerId}
             variant="outline"
+            disabled={disabled}
             className={cn(
               'w-full justify-start text-left font-normal',
               !dateRange.startDate && !dateRange.endDate && 'text-muted-foreground',
+              disabled && 'cursor-not-allowed',
               className,
             )}
           >
@@ -243,52 +291,18 @@ export function DateRangePicker({
           <DialogFooter className="flex-row justify-between sm:justify-between">
             {availableDates && availableDates.length >= 2 ? (
               <div className="flex flex-wrap gap-1.5">
-                {[
-                  {
-                    label: 'Max Range',
-                    getRange: () => ({
-                      startDate: availableDates[0],
-                      endDate: availableDates.at(-1)!,
-                    }),
-                  },
-                  {
-                    label: 'Last 90 Days',
-                    getRange: () => {
-                      const cutoff = new Date();
-                      cutoff.setDate(cutoff.getDate() - 90);
-                      const cutoffStr = cutoff.toISOString().slice(0, 10);
-                      const filtered = availableDates.filter((d) => d >= cutoffStr);
-                      if (filtered.length < 2) return null;
-                      return { startDate: filtered[0], endDate: filtered.at(-1)! };
-                    },
-                  },
-                  {
-                    label: 'Last 30 Days',
-                    getRange: () => {
-                      const cutoff = new Date();
-                      cutoff.setDate(cutoff.getDate() - 30);
-                      const cutoffStr = cutoff.toISOString().slice(0, 10);
-                      const filtered = availableDates.filter((d) => d >= cutoffStr);
-                      if (filtered.length < 2) return null;
-                      return { startDate: filtered[0], endDate: filtered.at(-1)! };
-                    },
-                  },
-                ].map(({ label, getRange }) => {
-                  const range = getRange();
-                  if (!range) return null;
-                  return (
-                    <Button
-                      key={label}
-                      variant="outline"
-                      onClick={() => {
-                        setTempRange(range);
-                        track('date_range_picker_quick_select', { label });
-                      }}
-                    >
-                      {label}
-                    </Button>
-                  );
-                })}
+                {getQuickDateRanges(availableDates).map(({ label, range }) => (
+                  <Button
+                    key={label}
+                    variant="outline"
+                    onClick={() => {
+                      setTempRange(range);
+                      track('date_range_picker_quick_select', { label });
+                    }}
+                  >
+                    {label}
+                  </Button>
+                ))}
               </div>
             ) : (
               <div />

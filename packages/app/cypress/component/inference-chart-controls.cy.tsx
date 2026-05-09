@@ -49,14 +49,18 @@ describe('Inference ChartControls', () => {
 });
 
 describe('GpuComparisonCard', () => {
-  it('renders two GPU slot selectors and no date range until two GPUs are selected', () => {
+  const gpuOptions = [
+    { value: 'h100_sglang', label: 'H100 SGLang' },
+    { value: 'b200_sglang', label: 'B200 SGLang' },
+    { value: 'mi300x_sglang', label: 'MI300X SGLang' },
+    { value: 'h200_sglang', label: 'H200 SGLang' },
+  ];
+
+  it('renders two required GPU slots and an Add GPU button; date range disabled', () => {
     mountWithProviders(<GpuComparisonCard />, {
       inference: {
         selectedGPUs: [],
-        availableGPUs: [
-          { value: 'h100_sglang', label: 'H100 SGLang' },
-          { value: 'b200_sglang', label: 'B200 SGLang' },
-        ],
+        availableGPUs: gpuOptions,
       },
     });
 
@@ -64,21 +68,81 @@ describe('GpuComparisonCard', () => {
     cy.contains('GPU Comparison').should('be.visible');
     cy.get('[data-testid="gpu-comparison-select-1"]').should('be.visible');
     cy.get('[data-testid="gpu-comparison-select-2"]').should('be.visible');
-    cy.contains('Comparison Date Range').should('not.exist');
+    cy.get('[data-testid="gpu-comparison-select-3"]').should('not.exist');
+    cy.get('[data-testid="gpu-comparison-select-4"]').should('not.exist');
+    cy.get('[data-testid="gpu-comparison-add-slot"]').should('be.visible');
+    cy.contains('Comparison Date Range').should('be.visible');
+    cy.get('#gpu-comparison-date-picker').should('be.disabled');
+    cy.get('[data-testid="date-range-shortcuts"]').should('be.visible');
+    cy.get('[data-testid="date-shortcut-all-time"]').should('be.disabled');
   });
 
-  it('shows Comparison Date Range when two GPUs are selected', () => {
+  it('shows enabled shortcut buttons that call setSelectedDateRange when two GPUs are selected', () => {
     mountWithProviders(<GpuComparisonCard />, {
       inference: {
         selectedGPUs: ['h100_sglang', 'b200_sglang'],
         selectedDateRange: { startDate: '', endDate: '' },
-        availableGPUs: [
-          { value: 'h100_sglang', label: 'H100 SGLang' },
-          { value: 'b200_sglang', label: 'B200 SGLang' },
+        availableGPUs: gpuOptions,
+        dateRangeAvailableDates: [
+          '2025-10-05',
+          '2025-11-01',
+          '2025-12-01',
+          '2026-01-01',
+          '2026-02-01',
+          '2026-03-01',
         ],
       },
     });
 
-    cy.contains('Comparison Date Range').should('be.visible');
+    cy.get('[data-testid="date-shortcut-all-time"]').should('not.be.disabled');
+    cy.get('[data-testid="date-shortcut-all-time"]').click();
+    cy.get('@setSelectedDateRange').should('have.been.calledOnce');
+  });
+
+  it('shows slot 3 after clicking Add GPU when two GPUs are selected', () => {
+    mountWithProviders(<GpuComparisonCard />, {
+      inference: {
+        selectedGPUs: ['h100_sglang', 'b200_sglang'],
+        selectedDateRange: { startDate: '', endDate: '' },
+        availableGPUs: gpuOptions,
+      },
+    });
+
+    cy.get('#gpu-comparison-date-picker').should('not.be.disabled');
+    cy.get('[data-testid="gpu-comparison-select-3"]').should('not.exist');
+    cy.get('[data-testid="gpu-comparison-add-slot"]').click();
+    cy.get('[data-testid="gpu-comparison-select-3"]').should('be.visible');
+    cy.get('[data-testid="gpu-comparison-select-4"]').should('not.exist');
+    cy.get('[data-testid="gpu-comparison-add-slot"]').should('be.visible');
+  });
+
+  it('shows all four slots when mounted with three GPUs and Add GPU clicked', () => {
+    mountWithProviders(<GpuComparisonCard />, {
+      inference: {
+        selectedGPUs: ['h100_sglang', 'b200_sglang', 'mi300x_sglang'],
+        selectedDateRange: { startDate: '', endDate: '' },
+        availableGPUs: gpuOptions,
+      },
+    });
+
+    cy.get('[data-testid="gpu-comparison-select-3"]').should('be.visible');
+    cy.get('[data-testid="gpu-comparison-add-slot"]').click();
+    cy.get('[data-testid="gpu-comparison-select-4"]').should('be.visible');
+    cy.get('[data-testid="gpu-comparison-add-slot"]').should('not.exist');
+  });
+
+  it('removes an optional slot when its X button is clicked', () => {
+    mountWithProviders(<GpuComparisonCard />, {
+      inference: {
+        selectedGPUs: ['h100_sglang', 'b200_sglang', 'mi300x_sglang'],
+        selectedDateRange: { startDate: '', endDate: '' },
+        availableGPUs: gpuOptions,
+      },
+    });
+
+    cy.get('[data-testid="gpu-comparison-select-3"]').should('be.visible');
+    cy.get('[data-testid="gpu-comparison-clear-3"]').click();
+    cy.get('[data-testid="gpu-comparison-select-3"]').should('not.exist');
+    cy.get('@setSelectedGPUs').should('have.been.called');
   });
 });
