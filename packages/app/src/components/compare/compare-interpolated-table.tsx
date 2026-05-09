@@ -342,13 +342,13 @@ function MetricTableRow({
               className={`tabular-nums text-xs ${cell.aWins ? winnerClass : 'text-foreground'}`}
             >
               <span className="text-muted-foreground mr-1">{aLabel}:</span>
-              {cell.aVal !== null ? metric.format(cell.aVal) : '—'}
+              {cell.aVal === null ? '—' : metric.format(cell.aVal)}
             </span>
             <span
               className={`tabular-nums text-xs ${cell.bWins ? winnerClass : 'text-foreground'}`}
             >
               <span className="text-muted-foreground mr-1">{bLabel}:</span>
-              {cell.bVal !== null ? metric.format(cell.bVal) : '—'}
+              {cell.bVal === null ? '—' : metric.format(cell.bVal)}
             </span>
           </div>
         </td>
