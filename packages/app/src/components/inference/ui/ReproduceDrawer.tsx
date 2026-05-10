@@ -254,13 +254,15 @@ export default function ReproduceDrawer({ point, sequence, model, onClose }: Rep
         </div>
 
         <div className="overflow-auto px-4 py-3">
-          {!point ? null : activeTab === 'command' ? (
-            <CommandTab launch={launch} />
-          ) : activeTab === 'config' ? (
-            <CodeBlock value={configJson} language="json" />
-          ) : (
-            <EnvironmentTab point={point} hwLabel={hwLabel} runUrl={runUrl} />
-          )}
+          {point ? (
+            activeTab === 'command' ? (
+              <CommandTab launch={launch} />
+            ) : activeTab === 'config' ? (
+              <CodeBlock value={configJson} language="json" />
+            ) : (
+              <EnvironmentTab point={point} hwLabel={hwLabel} runUrl={runUrl} />
+            )
+          ) : null}
         </div>
       </DialogContent>
     </Dialog>
