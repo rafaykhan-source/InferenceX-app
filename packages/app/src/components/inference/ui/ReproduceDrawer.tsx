@@ -130,7 +130,7 @@ export default function ReproduceDrawer({ point, sequence, model, onClose }: Rep
         `GPU: ${hwLabel}`,
         `Framework: ${point.framework ?? '(unknown)'}`,
         point.precision ? `Precision: ${point.precision.toUpperCase()}` : '',
-        point.image ? `Container image: ${point.image}` : '',
+        point.image ? `Container tag: ${point.image}` : '',
         point.spec_decoding && point.spec_decoding !== 'none'
           ? `Speculative decoding: ${point.spec_decoding}`
           : '',
@@ -368,7 +368,7 @@ function EnvironmentTab({
       label: 'Speculative decoding',
       value: point.spec_decoding && point.spec_decoding !== 'none' ? point.spec_decoding : 'none',
     },
-    { label: 'Container image', value: point.image },
+    { label: 'Container tag', value: point.image },
     {
       label: 'Run date',
       value: point.actualDate ?? point.date,

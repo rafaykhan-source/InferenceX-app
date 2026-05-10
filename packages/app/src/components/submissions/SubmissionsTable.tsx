@@ -288,7 +288,7 @@ function SubmissionRow({
                 <div className="col-span-2 md:col-span-4">
                   <DetailItem
                     label="Image:"
-                    tip="Container image used for this benchmark configuration"
+                    tip="Container tag used for this benchmark configuration"
                   >
                     <span className="font-mono text-xs break-all">{row.image ?? '—'}</span>
                   </DetailItem>
