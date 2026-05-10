@@ -256,7 +256,6 @@ describe('generateTooltipContent', () => {
   it('does not show Track Over Time button when not pinned', () => {
     const html = generateTooltipContent(tooltipConfig({ isPinned: false }));
     expect(html).not.toContain('data-action="track-over-time"');
-    expect(html).not.toContain('Track Over Time');
   });
 
   it('defaults isTracked to false when not provided', () => {
@@ -271,9 +270,16 @@ describe('generateTooltipContent', () => {
     expect(html).toContain('Reproduce');
   });
 
-  it('does not show the Reproduce button when not pinned', () => {
+  it('shows non-interactive Reproduce discovery when not pinned', () => {
     const html = generateTooltipContent(tooltipConfig({ isPinned: false }));
+    expect(html).toContain('data-testid="tooltip-reproduce-discovery"');
+    expect(html).toContain('Reproduce');
     expect(html).not.toContain('data-action="reproduce"');
+  });
+
+  it('does not show discovery block when pinned', () => {
+    const html = generateTooltipContent(tooltipConfig({ isPinned: true }));
+    expect(html).not.toContain('data-testid="tooltip-reproduce-discovery"');
   });
 });
 
@@ -318,6 +324,12 @@ describe('generateOverlayTooltipContent', () => {
     const html = generateOverlayTooltipContent(overlayConfig());
     expect(html).toContain('Concurrency');
     expect(html).toContain('64');
+  });
+
+  it('shows Reproduce discovery when not pinned', () => {
+    const html = generateOverlayTooltipContent(overlayConfig({ isPinned: false }));
+    expect(html).toContain('data-testid="tooltip-reproduce-discovery"');
+    expect(html).not.toContain('data-action="reproduce"');
   });
 });
 
@@ -382,8 +394,14 @@ describe('generateGPUGraphTooltipContent', () => {
     expect(html).toContain('data-action="reproduce"');
   });
 
-  it('does not show the Reproduce button when not pinned', () => {
+  it('shows non-interactive Reproduce discovery when not pinned', () => {
     const html = generateGPUGraphTooltipContent(tooltipConfig({ isPinned: false }));
+    expect(html).toContain('data-testid="tooltip-reproduce-discovery"');
     expect(html).not.toContain('data-action="reproduce"');
+  });
+
+  it('does not show discovery block when pinned', () => {
+    const html = generateGPUGraphTooltipContent(tooltipConfig({ isPinned: true }));
+    expect(html).not.toContain('data-testid="tooltip-reproduce-discovery"');
   });
 });

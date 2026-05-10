@@ -95,6 +95,18 @@ const imageTooltipLine = (image: string) =>
         <strong>Image:</strong> <span style="display: inline-block; vertical-align: top; overflow-wrap: anywhere;">${shortenSha(image.trim()).replace(/\s+/u, '<br />')}</span>
       </div>`;
 
+/** Non-interactive hint on hover — unpinned tooltips use pointer-events:none, so buttons cannot work until pin. */
+const reproduceDiscoveryHint = (line: string) =>
+  `<div data-testid="tooltip-reproduce-discovery" style="color: var(--muted-foreground); font-size: 10px; font-style: italic; margin-top: 6px; line-height: 1.35; opacity: 0.9;">${line}</div>`;
+
+const scatterReproduceDiscoveryHTML = reproduceDiscoveryHint(
+  'Click to pin for Reproduce and track over time.',
+);
+
+const gpuGraphReproduceDiscoveryHTML = reproduceDiscoveryHint('Click to pin to open Reproduce.');
+
+const overlayReproduceDiscoveryHTML = reproduceDiscoveryHint('Click to pin for more options.');
+
 /**
  * Generates HTML for the parallelism configuration section of a tooltip.
  * Falls back to GPU count for old data without parallelism fields.
@@ -186,6 +198,7 @@ export const generateTooltipContent = (config: TooltipConfig): string => {
         <strong>Precision:</strong> ${d.precision.toUpperCase()}
       </div>
       ${runLinkHTML(runUrl)}
+      ${isPinned ? '' : scatterReproduceDiscoveryHTML}
       ${
         isPinned
           ? `<button data-action="track-over-time" style="
@@ -246,6 +259,7 @@ export const generateOverlayTooltipContent = (config: OverlayTooltipConfig): str
       <div style="color: var(--muted-foreground); font-size: 11px;">
         <strong>Precision:</strong> ${d.precision.toUpperCase()}
       </div>
+      ${isPinned ? '' : overlayReproduceDiscoveryHTML}
     </div>
   `;
 };
@@ -306,6 +320,7 @@ export const generateGPUGraphTooltipContent = (config: TooltipConfig): string =>
         <strong>Precision:</strong> ${d.precision.toUpperCase()}
       </div>
       ${runLinkHTML(runUrl)}
+      ${isPinned ? '' : gpuGraphReproduceDiscoveryHTML}
       ${
         isPinned
           ? `<button data-action="reproduce" data-testid="tooltip-reproduce-btn" style="
