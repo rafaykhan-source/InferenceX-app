@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { type KeyboardEvent, type ReactNode, useMemo, useRef, useState } from 'react';
 import {
   ArrowDown,
   ArrowUp,
@@ -26,7 +26,7 @@ export interface DataTableColumn<T> {
   /** Right-align the column (default: false = left-aligned). */
   align?: 'left' | 'right' | 'center';
   /** Extract and format the cell value from a row. */
-  cell: (row: T, index: number) => React.ReactNode;
+  cell: (row: T, index: number) => ReactNode;
   /** Extract a sortable/searchable value from a row. Omit to disable sorting and search for this column. */
   sortValue?: (row: T) => number | string;
   /** Additional className for header and body cells. */
@@ -40,7 +40,7 @@ interface SortState {
   dir: SortDir;
 }
 
-interface DataTableProps<T> {
+interface DataTablePropsBase<T> {
   /** Row data to display. */
   data: T[];
   /** Column definitions. */
@@ -51,6 +51,21 @@ interface DataTableProps<T> {
   analyticsPrefix?: string;
   /** Show watermark (default: true). */
   watermark?: boolean;
+}
+
+/** Row click requires `getRowAriaLabel` so keyboard/screen-reader users get an accessible name. */
+export type DataTableProps<T> =
+  | DataTablePropsBase<T>
+  | (DataTablePropsBase<T> & {
+      onRowClick: (row: T) => void;
+      getRowAriaLabel: (row: T) => string;
+    });
+
+function hasRowClickProps<T>(p: DataTableProps<T>): p is DataTablePropsBase<T> & {
+  onRowClick: (row: T) => void;
+  getRowAriaLabel: (row: T) => string;
+} {
+  return 'onRowClick' in p && typeof p.onRowClick === 'function';
 }
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100, 250, 500] as const;
@@ -67,13 +82,15 @@ const SORT_ICON = {
   none: <ArrowUpDown className="inline size-3 opacity-30" />,
 };
 
-export function DataTable<T>({
-  data,
-  columns,
-  testId = 'data-table',
-  analyticsPrefix = 'table',
-  watermark = true,
-}: DataTableProps<T>) {
+export function DataTable<T>(props: DataTableProps<T>) {
+  const {
+    data,
+    columns,
+    testId = 'data-table',
+    analyticsPrefix = 'table',
+    watermark = true,
+  } = props;
+  const rowClick = hasRowClickProps(props) ? props : null;
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState<number>(25);
   const [sort, setSort] = useState<SortState>({ columnIndex: -1, dir: null });
@@ -235,18 +252,39 @@ export function DataTable<T>({
                 </td>
               </tr>
             ) : (
-              pageData.map((row, rowIndex) => (
-                <tr key={rowIndex} className="border-b border-border/50 hover:bg-muted/30">
-                  {columns.map((col, colIndex) => (
-                    <td
-                      key={colIndex}
-                      className={`py-2 px-3 ${ALIGN_CLASSES[col.align ?? 'left']} ${col.className ?? ''}`}
-                    >
-                      {col.cell(row, safePage * pageSize + rowIndex)}
-                    </td>
-                  ))}
-                </tr>
-              ))
+              pageData.map((row, rowIndex) => {
+                const globalRowIndex = safePage * pageSize + rowIndex;
+                const interactive = rowClick !== null;
+                const trClass = `border-b border-border/50 hover:bg-muted/30${interactive ? ' cursor-pointer' : ''}`;
+                const activate = () => rowClick?.onRowClick(row);
+                const onRowKeyDown = interactive
+                  ? (e: KeyboardEvent<HTMLTableRowElement>) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        rowClick.onRowClick(row);
+                      }
+                    }
+                  : undefined;
+                return (
+                  <tr
+                    key={rowIndex}
+                    className={trClass}
+                    onClick={interactive ? activate : undefined}
+                    onKeyDown={onRowKeyDown}
+                    tabIndex={interactive ? 0 : undefined}
+                    aria-label={interactive ? rowClick.getRowAriaLabel(row) : undefined}
+                  >
+                    {columns.map((col, colIndex) => (
+                      <td
+                        key={colIndex}
+                        className={`py-2 px-3 ${ALIGN_CLASSES[col.align ?? 'left']} ${col.className ?? ''}`}
+                      >
+                        {col.cell(row, globalRowIndex)}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
