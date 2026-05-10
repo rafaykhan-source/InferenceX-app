@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 import { track } from '@/lib/analytics';
 import { cn } from '@/lib/utils';
@@ -10,45 +11,12 @@ import { MAX_COMPARISON_GPUS } from '@/components/inference/utils/normalize-comp
 import { useComparisonChangelogs } from '@/hooks/api/use-comparison-changelogs';
 import { DateRangePicker, getQuickDateRangeShortcuts } from '@/components/ui/date-range-picker';
 import { LabelWithTooltip } from '@/components/ui/label-with-tooltip';
-import { SearchableSelect } from '@/components/ui/searchable-select';
+import { MultiSelect } from '@/components/ui/multi-select';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus, X } from 'lucide-react';
 
 import ComparisonChangelog from './ComparisonChangelog';
-
-const GPU_OPTIONS_GROUP = 'GPUs';
-
-const MIN_SLOTS = 2;
-
-const SLOT_INDICES = Array.from({ length: MAX_COMPARISON_GPUS }, (_, i) => i);
-
-/**
- * Build the new dense GPU list after a slot value changes.
- * Keeps selections in visual slot order, dedupes, and strips empties.
- */
-export function buildSelectionAfterSlotChange(
-  selectedGPUs: string[],
-  slotCount: number,
-  slotIndex: number,
-  rawValue: string,
-): string[] {
-  const v = rawValue.trim();
-  const slots: string[] = [];
-  for (let j = 0; j < slotCount; j++) {
-    slots.push(j === slotIndex ? v : (selectedGPUs[j] ?? ''));
-  }
-  const out: string[] = [];
-  const seen = new Set<string>();
-  for (const x of slots) {
-    if (!x) continue;
-    if (seen.has(x)) continue;
-    seen.add(x);
-    out.push(x);
-  }
-  return out;
-}
 
 export default function GpuComparisonCard() {
   const {
@@ -70,47 +38,20 @@ export default function GpuComparisonCard() {
     totalDatesQueried,
   } = useComparisonChangelogs(selectedGPUs, selectedDateRange, dateRangeAvailableDates);
 
-  const comparisonReady = selectedGPUs.length >= 2;
+  const comparisonReady = selectedGPUs.length > 0;
 
-  const [slotCount, setSlotCount] = useState(() => Math.max(MIN_SLOTS, selectedGPUs.length));
+  const [isExpanded, setIsExpanded] = useState(false);
 
-  // Keep slotCount in sync when GPUs change externally (presets, URL restore)
   useEffect(() => {
-    if (selectedGPUs.length > slotCount) {
-      setSlotCount(selectedGPUs.length);
+    if (comparisonReady) {
+      setIsExpanded(true);
     }
-  }, [selectedGPUs.length, slotCount]);
+  }, [comparisonReady]);
 
-  const newSlotRef = useRef<number | null>(null);
-
-  const optionsBySlot = useMemo(
-    () =>
-      SLOT_INDICES.map((i) => ({
-        label: GPU_OPTIONS_GROUP,
-        options: availableGPUs.filter(
-          (o) => !selectedGPUs.some((g, j) => j !== i && g === o.value),
-        ),
-      })),
-    [availableGPUs, selectedGPUs],
-  );
-
-  // Auto-focus newly added slot
-  useEffect(() => {
-    if (newSlotRef.current !== null) {
-      const id = `gpu-comparison-slot-${newSlotRef.current + 1}`;
-      const el = document.querySelector<HTMLElement>(`#${id}`);
-      if (el) el.focus();
-      newSlotRef.current = null;
-    }
-  });
-
-  const handleSlotChange = (slotIndex: number, value: string) => {
-    const next = buildSelectionAfterSlotChange(selectedGPUs, slotCount, slotIndex, value);
-    setSelectedGPUs(next);
-    track('inference_gpu_comparison_slot_selected', {
-      slot: slotIndex + 1,
-      value: value || '',
-      gpus: next.join(','),
+  const handleGPUChange = (value: string[]) => {
+    setSelectedGPUs(value);
+    track('inference_gpu_selected', {
+      gpus: value.join(','),
     });
   };
 
@@ -122,188 +63,156 @@ export default function GpuComparisonCard() {
     });
   };
 
-  const clearSlot = (slotIndex: number) => {
-    if (slotIndex < MIN_SLOTS) {
-      handleSlotChange(slotIndex, '');
-      return;
-    }
-    const next = selectedGPUs.filter((_, j) => j !== slotIndex);
-    setSelectedGPUs(next);
-    setSlotCount((c) => Math.max(MIN_SLOTS, c - 1));
-    track('inference_gpu_comparison_slot_removed', {
-      slot: slotIndex + 1,
-      gpus: next.join(','),
-    });
-  };
-
-  const addSlot = () => {
-    const nextCount = Math.min(MAX_COMPARISON_GPUS, slotCount + 1);
-    setSlotCount(nextCount);
-    newSlotRef.current = nextCount - 1;
-    track('inference_gpu_comparison_slot_added', { newSlotCount: nextCount });
-  };
-
-  const canAddSlot = slotCount < MAX_COMPARISON_GPUS && slotCount < availableGPUs.length;
-
-  // Slot 0 is always enabled. Later slots are disabled only if they're empty
-  // and there's still a gap in an earlier slot (forces top-down filling).
-  const slotDisabled = (i: number): boolean => {
-    if (i === 0) return false;
-    if (selectedGPUs[i]) return false;
-    return !selectedGPUs[i - 1];
-  };
-
   return (
-    <Card data-testid="gpu-comparison-card">
+    <Card data-testid="gpu-comparison-card" className={cn(!isExpanded && 'py-3 md:py-4')}>
       <TooltipProvider delayDuration={0}>
-        <div className="flex flex-col gap-4">
-          <h2 className="text-lg font-semibold">GPU Comparison</h2>
-          <p className="text-sm text-muted-foreground -mt-1" role="status">
-            Select at least two for date range comparison.
-          </p>
+        <div className={cn('flex flex-col', isExpanded ? 'gap-4' : 'gap-0')}>
+          <button
+            type="button"
+            data-testid="gpu-comparison-expand-toggle"
+            aria-expanded={isExpanded}
+            className={cn(
+              'group flex w-full items-center justify-between gap-2 rounded-md py-0.5 text-left outline-none ring-offset-background',
+              'focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+            )}
+            onClick={() => {
+              setIsExpanded((prev) => {
+                const next = !prev;
+                track('inference_gpu_comparison_toggled', { expanded: next });
+                return next;
+              });
+            }}
+          >
+            <h2 className="m-0 min-w-0 flex-1 text-lg font-semibold leading-none">
+              GPU Comparison
+            </h2>
+            <ChevronDown
+              className={cn(
+                'no-export size-[1.125rem] shrink-0 self-center text-muted-foreground transition-all duration-200 group-hover:text-foreground',
+                isExpanded && 'rotate-180',
+              )}
+              aria-hidden
+            />
+          </button>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {SLOT_INDICES.slice(0, slotCount).map((i) => {
-              const value = selectedGPUs[i] ?? '';
-              const slotGroups = [optionsBySlot[i]!];
-              const isOptional = i >= MIN_SLOTS;
-              return (
-                <div key={i} className="flex flex-col space-y-1.5">
+          <div
+            className={cn(
+              'grid transition-[grid-template-rows] duration-200 ease-out',
+              isExpanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
+            )}
+          >
+            <div className={cn('min-h-0', isExpanded ? 'overflow-visible' : 'overflow-hidden')}>
+              <div className="flex flex-col gap-4 pb-0">
+                {isExpanded && (
+                  <p className="text-sm text-muted-foreground" role="status">
+                    Select one or more GPUs for date range comparison.
+                  </p>
+                )}
+                <div className="flex flex-col space-y-1.5">
                   <LabelWithTooltip
-                    htmlFor={`gpu-comparison-slot-${i + 1}`}
-                    label={`GPU ${i + 1}`}
-                    tooltip={`Hardware configuration ${i + 1} for historical comparison (up to ${MAX_COMPARISON_GPUS} GPUs).`}
+                    htmlFor="gpu-config-select"
+                    label="GPU Config"
+                    tooltip={`Select up to ${MAX_COMPARISON_GPUS} GPU configurations to compare their historical performance over time. This allows for tracking how software updates may affect specific hardware.`}
                   />
-                  <div className="flex gap-2 items-start">
-                    <div className="flex-1 min-w-0">
-                      <SearchableSelect
-                        triggerId={`gpu-comparison-slot-${i + 1}`}
-                        triggerTestId={`gpu-comparison-select-${i + 1}`}
-                        value={value}
-                        onValueChange={(v) => handleSlotChange(i, v)}
-                        placeholder="Select GPU configuration"
-                        trackPrefix={`inference_gpu_comparison_${i + 1}`}
-                        groups={slotGroups}
-                        disabled={slotDisabled(i)}
-                      />
-                    </div>
-                    {(value || isOptional) && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="shrink-0 mt-0.5"
-                        aria-label={
-                          isOptional && !value ? `Remove GPU ${i + 1} slot` : `Clear GPU ${i + 1}`
-                        }
-                        data-testid={`gpu-comparison-clear-${i + 1}`}
-                        disabled={slotDisabled(i)}
-                        onClick={() => clearSlot(i)}
-                      >
-                        <X className="size-4" />
-                      </Button>
+                  <div data-testid="gpu-multiselect">
+                    <MultiSelect
+                      triggerId="gpu-config-select"
+                      triggerTestId="gpu-multiselect-trigger"
+                      options={availableGPUs}
+                      value={selectedGPUs}
+                      onChange={handleGPUChange}
+                      placeholder="Select a GPU Config for comparison"
+                      maxSelections={MAX_COMPARISON_GPUS}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-col space-y-1.5 md:max-w-xl">
+                  <div
+                    className={cn('flex flex-col space-y-1.5', !comparisonReady && 'opacity-60')}
+                  >
+                    <LabelWithTooltip
+                      htmlFor="gpu-comparison-date-picker"
+                      label="Comparison Date Range"
+                      tooltip="Select the start and end dates for the historical comparison. The chart will show performance data for the selected GPU configs across this time range."
+                    />
+                    <DateRangePicker
+                      triggerId="gpu-comparison-date-picker"
+                      dateRange={selectedDateRange}
+                      onChange={handleDateRangeChange}
+                      placeholder="Select date range"
+                      availableDates={dateRangeAvailableDates}
+                      isCheckingAvailableDates={isCheckingAvailableDates}
+                      disabled={!comparisonReady}
+                    />
+                  </div>
+                  <div className="flex flex-wrap gap-1.5" data-testid="date-range-shortcuts">
+                    {getQuickDateRangeShortcuts(dateRangeAvailableDates).map(
+                      ({ id, label, range, isAvailable }) => {
+                        const canUse = comparisonReady && isAvailable && Boolean(range);
+                        const isActive =
+                          range !== null &&
+                          selectedDateRange.startDate === range.startDate &&
+                          selectedDateRange.endDate === range.endDate;
+                        return (
+                          <Button
+                            key={id}
+                            type="button"
+                            variant={isActive ? 'secondary' : 'outline'}
+                            size="sm"
+                            disabled={!canUse}
+                            data-testid={`date-shortcut-${id}`}
+                            onClick={() => {
+                              if (!range) return;
+                              handleDateRangeChange(range);
+                              track('inference_date_range_quick_select', {
+                                label,
+                                startDate: range.startDate,
+                                endDate: range.endDate,
+                              });
+                            }}
+                          >
+                            {label}
+                          </Button>
+                        );
+                      },
                     )}
                   </div>
                 </div>
-              );
-            })}
-          </div>
 
-          {canAddSlot && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="self-start"
-              data-testid="gpu-comparison-add-slot"
-              onClick={addSlot}
-            >
-              <Plus className="size-4 mr-1.5" />
-              Add GPU
-            </Button>
-          )}
-
-          <div className="flex flex-col space-y-1.5 md:max-w-xl">
-            <div className={cn('flex flex-col space-y-1.5', !comparisonReady && 'opacity-60')}>
-              <LabelWithTooltip
-                htmlFor="gpu-comparison-date-picker"
-                label="Comparison Date Range"
-                tooltip="Select the start and end dates for the historical comparison. The chart will show performance data for the selected GPU configs across this time range."
-              />
-              <DateRangePicker
-                triggerId="gpu-comparison-date-picker"
-                dateRange={selectedDateRange}
-                onChange={handleDateRangeChange}
-                placeholder="Select date range"
-                availableDates={dateRangeAvailableDates}
-                isCheckingAvailableDates={isCheckingAvailableDates}
-                disabled={!comparisonReady}
-              />
-            </div>
-            <div className="flex flex-wrap gap-1.5" data-testid="date-range-shortcuts">
-              {getQuickDateRangeShortcuts(dateRangeAvailableDates).map(
-                ({ id, label, range, isAvailable }) => {
-                  const canUse = comparisonReady && isAvailable && Boolean(range);
-                  const isActive =
-                    range !== null &&
-                    selectedDateRange.startDate === range.startDate &&
-                    selectedDateRange.endDate === range.endDate;
-                  return (
-                    <Button
-                      key={id}
-                      type="button"
-                      variant={isActive ? 'secondary' : 'outline'}
-                      size="sm"
-                      disabled={!canUse}
-                      data-testid={`date-shortcut-${id}`}
-                      onClick={() => {
-                        if (!range) return;
-                        handleDateRangeChange(range);
-                        track('inference_date_range_quick_select', {
-                          label,
-                          startDate: range.startDate,
-                          endDate: range.endDate,
-                        });
+                {comparisonReady && (
+                  <div className="border-t border-border pt-4 mt-1">
+                    <ComparisonChangelog
+                      changelogs={changelogs}
+                      selectedGPUs={selectedGPUs}
+                      selectedPrecisions={selectedPrecisions}
+                      loading={changelogsLoading}
+                      totalDatesQueried={totalDatesQueried}
+                      selectedDates={selectedDates}
+                      selectedDateRange={selectedDateRange}
+                      expandWhenActive={
+                        comparisonReady &&
+                        Boolean(selectedDateRange.startDate && selectedDateRange.endDate)
+                      }
+                      onAddDate={(date) => {
+                        if (!selectedDates.includes(date)) {
+                          setSelectedDates([...selectedDates, date]);
+                        }
                       }}
-                    >
-                      {label}
-                    </Button>
-                  );
-                },
-              )}
+                      onRemoveDate={(date) => {
+                        setSelectedDates(selectedDates.filter((d) => d !== date));
+                      }}
+                      onAddAllDates={(dates) => {
+                        const merged = [...new Set([...selectedDates, ...dates])];
+                        setSelectedDates(merged);
+                      }}
+                      firstAvailableDate={dateRangeAvailableDates[0]}
+                    />
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-
-          {comparisonReady && (
-            <div className="border-t border-border pt-4 mt-1">
-              <ComparisonChangelog
-                changelogs={changelogs}
-                selectedGPUs={selectedGPUs}
-                selectedPrecisions={selectedPrecisions}
-                loading={changelogsLoading}
-                totalDatesQueried={totalDatesQueried}
-                selectedDates={selectedDates}
-                selectedDateRange={selectedDateRange}
-                expandWhenActive={
-                  comparisonReady &&
-                  Boolean(selectedDateRange.startDate && selectedDateRange.endDate)
-                }
-                onAddDate={(date) => {
-                  if (!selectedDates.includes(date)) {
-                    setSelectedDates([...selectedDates, date]);
-                  }
-                }}
-                onRemoveDate={(date) => {
-                  setSelectedDates(selectedDates.filter((d) => d !== date));
-                }}
-                onAddAllDates={(dates) => {
-                  const merged = [...new Set([...selectedDates, ...dates])];
-                  setSelectedDates(merged);
-                }}
-                firstAvailableDate={dateRangeAvailableDates[0]}
-              />
-            </div>
-          )}
         </div>
       </TooltipProvider>
     </Card>

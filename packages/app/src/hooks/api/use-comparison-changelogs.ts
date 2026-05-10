@@ -19,7 +19,7 @@ export function useComparisonChangelogs(
   selectedDateRange: { startDate: string; endDate: string },
   availableDates: string[],
 ) {
-  const hasGPUs = selectedGPUs.length >= 2;
+  const hasGPUs = selectedGPUs.length > 0;
   const hasDateRange = Boolean(selectedDateRange.startDate) && Boolean(selectedDateRange.endDate);
 
   // When GPUs selected: fetch all available dates. When date range also set: limit to range.

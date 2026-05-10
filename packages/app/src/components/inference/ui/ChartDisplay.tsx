@@ -147,7 +147,7 @@ export default function ChartDisplay() {
     setSelectedE2eXAxisMetric,
   } = useInference();
 
-  const comparisonReady = useMemo(() => selectedGPUs.length >= 2, [selectedGPUs]);
+  const comparisonReady = useMemo(() => selectedGPUs.length > 0, [selectedGPUs]);
 
   const [viewModes, setViewModes] = useState<Record<number, InferenceViewMode>>({});
   const getViewMode = (index: number): InferenceViewMode => viewModes[index] ?? 'chart';
@@ -522,14 +522,14 @@ export default function ChartDisplay() {
         ));
 
   return (
-    <div data-testid="inference-chart-display" className="flex flex-col gap-4">
+    <div data-testid="inference-chart-display" className="flex flex-col gap-3 md:gap-4">
       <section className="relative z-20">
-        <Card>
-          <div className="flex flex-col gap-4">
+        <Card className="p-4 md:p-6">
+          <div className="flex flex-col gap-3">
             <div className="flex items-start justify-between">
               <div>
-                <h2 className="text-lg font-semibold mb-2">Inference Performance</h2>
-                <p className="text-muted-foreground text-sm mb-4">
+                <h2 className="text-lg font-semibold mb-1.5">Inference Performance</h2>
+                <p className="text-muted-foreground text-sm mb-3">
                   Inference performance metrics across different models, hardware configurations,
                   and serving parameters.
                 </p>
