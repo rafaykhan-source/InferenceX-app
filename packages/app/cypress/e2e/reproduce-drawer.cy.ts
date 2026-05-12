@@ -15,7 +15,7 @@ describe('Reproduce drawer', () => {
       .should('have.length.greaterThan', 0);
   });
 
-  it('opens from the inference table row click and shows the three tabs', () => {
+  it('opens from the inference table row click and shows core tabs', () => {
     cy.get('[data-testid="inference-table-view-btn"]').first().click();
     cy.get('[data-testid="inference-results-table"]').should('be.visible');
     cy.get('[data-testid="inference-results-table"] tbody tr').first().click();
@@ -27,6 +27,20 @@ describe('Reproduce drawer', () => {
     cy.contains('button', 'Environment').should('be.visible');
   });
 
+  it('shows History tab when inline launch command is available', () => {
+    cy.get('[data-testid="inference-table-view-btn"]').first().click();
+    cy.get('[data-testid="inference-results-table"] tbody tr').first().click();
+    cy.get('[data-testid="reproduce-drawer"]').should('be.visible');
+    cy.get('body').then(($body) => {
+      if ($body.find('[data-testid="reproduce-drawer-tab-history"]').length > 0) {
+        cy.get('[data-testid="reproduce-drawer-tab-history"]').click();
+        cy.get(
+          '[data-testid="reproduce-drawer-history-empty"], [data-testid="reproduce-drawer-history-diff"], [data-testid="reproduce-drawer-history-identical"]',
+        ).should('exist');
+      }
+    });
+  });
+
   it('exposes a copy button on every tab', () => {
     cy.get('[data-testid="inference-table-view-btn"]').first().click();
     cy.get('[data-testid="inference-results-table"] tbody tr').first().click();
@@ -35,6 +49,12 @@ describe('Reproduce drawer', () => {
     cy.get('[data-testid="reproduce-drawer-copy"]').should('be.visible');
     cy.contains('button', 'Environment').click();
     cy.get('[data-testid="reproduce-drawer-copy"]').should('be.visible');
+    cy.get('body').then(($body) => {
+      if ($body.find('[data-testid="reproduce-drawer-tab-history"]').length > 0) {
+        cy.get('[data-testid="reproduce-drawer-tab-history"]').click();
+        cy.get('[data-testid="reproduce-drawer-copy"]').should('be.visible');
+      }
+    });
   });
 
   it('Esc closes the drawer without changing the URL hash', () => {

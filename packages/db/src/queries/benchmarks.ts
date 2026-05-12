@@ -156,6 +156,7 @@ export async function getAllBenchmarksForHistory(
       br.isl,
       br.osl,
       br.conc,
+      br.image,
       br.metrics - '{std_ttft,std_tpot,std_e2el,std_intvty,std_itl,mean_ttft,mean_tpot,mean_e2el,mean_intvty,mean_itl}'::text[] as metrics,
       br.date::text,
       CASE WHEN wr.html_url IS NOT NULL THEN wr.html_url || '/attempts/' || wr.run_attempt ELSE NULL END AS run_url

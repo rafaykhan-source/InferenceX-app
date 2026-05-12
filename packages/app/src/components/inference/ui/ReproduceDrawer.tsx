@@ -5,12 +5,20 @@ import { Check, Copy, ExternalLink } from 'lucide-react';
 
 import type { InferenceData } from '@/components/inference/types';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { useBenchmarkHistory } from '@/hooks/api/use-benchmark-history';
 import { track } from '@/lib/analytics';
+import { diffLines, diffLinesToPlainText, type DiffLine } from '@/lib/diff-lines';
 import { getHardwareConfig } from '@/lib/constants';
-import { buildLaunchCommand } from '@/lib/reproduce-command';
+import {
+  benchmarkRowMatchesReproducePoint,
+  buildLaunchCommandForBenchmarkRow,
+  buildLaunchCommandForInferencePoint,
+  launchResultToPlainText,
+} from '@/lib/reproduce-history';
+import type { LaunchCommandResult } from '@/lib/reproduce-command';
 import { getDisplayLabel, updateRepoUrl } from '@/lib/utils';
 
-type DrawerTab = 'command' | 'config' | 'environment';
+type DrawerTab = 'command' | 'config' | 'environment' | 'history';
 
 interface ReproduceDrawerProps {
   /** The point to reproduce, or null when the drawer is closed. */
@@ -41,30 +49,86 @@ export default function ReproduceDrawer({ point, sequence, model, onClose }: Rep
 
   const launch = useMemo(() => {
     if (!point) return null;
-    return buildLaunchCommand(point.framework ?? '', {
-      model,
-      precision: point.precision,
-      tp: point.tp,
-      ep: point.ep,
-      dp_attention: point.dp_attention,
-      spec_decoding: point.spec_decoding,
-      disagg: point.disagg,
-      prefill_tp: point.prefill_tp,
-      prefill_ep: point.prefill_ep,
-      prefill_dp_attention: point.prefill_dp_attention,
-      prefill_num_workers: point.prefill_num_workers,
-      num_prefill_gpu: point.num_prefill_gpu,
-      decode_tp: point.decode_tp,
-      decode_ep: point.decode_ep,
-      decode_dp_attention: point.decode_dp_attention,
-      decode_num_workers: point.decode_num_workers,
-      num_decode_gpu: point.num_decode_gpu,
-      conc: point.conc,
-      isl: sequence?.isl,
-      osl: sequence?.osl,
-      image: point.image,
-    });
+    return buildLaunchCommandForInferencePoint(point, model, sequence);
   }, [point, sequence?.isl, sequence?.osl, model]);
+
+  const showHistoryTab = launch !== null && launch.kind !== 'fallback';
+
+  const historyFetchEnabled = Boolean(
+    open && showHistoryTab && activeTab === 'history' && model && sequence?.isl && sequence?.osl,
+  );
+
+  const { data: historyRows, isLoading: historyLoading } = useBenchmarkHistory(
+    model ?? '',
+    sequence?.isl ?? 0,
+    sequence?.osl ?? 0,
+    { enabled: historyFetchEnabled },
+  );
+
+  const matchingHistoryRows = useMemo(() => {
+    if (!point || !historyRows) return [];
+    return historyRows.filter((row) => benchmarkRowMatchesReproducePoint(row, point));
+  }, [historyRows, point]);
+
+  const currentRunDate = point ? (point.actualDate ?? point.date) : '';
+
+  const historyPriorDates = useMemo(() => {
+    if (!currentRunDate) return [];
+    const dates = [...new Set(matchingHistoryRows.map((r) => r.date))]
+      .filter((d) => d < currentRunDate)
+      .toSorted((a, b) => b.localeCompare(a));
+    return dates;
+  }, [matchingHistoryRows, currentRunDate]);
+
+  const [historyPriorDate, setHistoryPriorDate] = useState<string | null>(null);
+
+  useEffect(() => {
+    setHistoryPriorDate((prev) => {
+      if (prev && historyPriorDates.includes(prev)) return prev;
+      return historyPriorDates[0] ?? null;
+    });
+  }, [historyPriorDates]);
+
+  const historyPriorRow = useMemo(() => {
+    if (!historyPriorDate) return null;
+    return matchingHistoryRows.find((r) => r.date === historyPriorDate) ?? null;
+  }, [matchingHistoryRows, historyPriorDate]);
+
+  const historyPriorLaunch = useMemo(() => {
+    if (!historyPriorRow) return null;
+    return buildLaunchCommandForBenchmarkRow(historyPriorRow, model, sequence);
+  }, [historyPriorRow, model, sequence]);
+
+  const historyDiffLines = useMemo(() => {
+    if (!launch || !historyPriorLaunch) return [];
+    if (historyPriorLaunch.kind === 'fallback' || launch.kind === 'fallback') return [];
+    return diffLines(launchResultToPlainText(historyPriorLaunch), launchResultToPlainText(launch));
+  }, [launch, historyPriorLaunch]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (activeTab === 'history' && !showHistoryTab) setActiveTab('command');
+  }, [activeTab, showHistoryTab, open]);
+
+  useEffect(() => {
+    if (!point || activeTab !== 'history' || !historyPriorDate || !showHistoryTab) return;
+    track('reproduce_history_diff', {
+      framework: point.framework,
+      hwKey: point.hwKey,
+      currentDate: point.actualDate ?? point.date,
+      historicalDate: historyPriorDate,
+    });
+  }, [
+    historyPriorDate,
+    activeTab,
+    showHistoryTab,
+    point?.hwKey,
+    point?.tp,
+    point?.conc,
+    point?.framework,
+    point?.actualDate,
+    point?.date,
+  ]);
 
   const configJson = useMemo(() => {
     if (!point) return '';
@@ -130,6 +194,20 @@ export default function ReproduceDrawer({ point, sequence, model, onClose }: Rep
       ]
         .filter(Boolean)
         .join('\n');
+    }
+    if (activeTab === 'history') {
+      if (!sequence?.isl || !sequence?.osl) {
+        return 'Choose an input/output sequence in the chart controls to load benchmark history for this comparison.';
+      }
+      const curLabel = point.actualDate ?? point.date;
+      const header = `Earlier run (${historyPriorDate ?? '?'}) vs current (${curLabel})\n\n`;
+      if (!historyPriorDate || !historyPriorLaunch || !launch) {
+        return `${header}(No comparison data)`;
+      }
+      if (historyPriorLaunch.kind === 'fallback' || launch.kind === 'fallback') {
+        return `${header}Earlier:\n${launchResultToPlainText(historyPriorLaunch)}\n\nCurrent:\n${launchResultToPlainText(launch)}`;
+      }
+      return `${header}${diffLinesToPlainText(historyDiffLines)}`;
     }
     if (!launch) return '';
     if (launch.kind === 'single' && launch.command) return launch.command;
@@ -217,6 +295,20 @@ export default function ReproduceDrawer({ point, sequence, model, onClose }: Rep
             active={activeTab === 'environment'}
             onClick={() => setActiveTab('environment')}
           />
+          {showHistoryTab ? (
+            <TabButton
+              label="History"
+              active={activeTab === 'history'}
+              onClick={() => {
+                setActiveTab('history');
+                track('reproduce_history_tab', {
+                  framework: point?.framework,
+                  hwKey: point?.hwKey,
+                });
+              }}
+              testId="reproduce-drawer-tab-history"
+            />
+          ) : null}
           <div className="ml-auto flex items-center gap-1">
             {runUrl && (
               <a
@@ -246,8 +338,24 @@ export default function ReproduceDrawer({ point, sequence, model, onClose }: Rep
               <CommandTab launch={launch} />
             ) : activeTab === 'config' ? (
               <CodeBlock value={configJson} language="json" />
-            ) : (
+            ) : activeTab === 'environment' ? (
               <EnvironmentTab point={point} hwLabel={hwLabel} runUrl={runUrl} />
+            ) : !sequence?.isl || !sequence?.osl ? (
+              <p className="text-xs text-muted-foreground">
+                Choose an input/output sequence in the chart controls to load benchmark history for
+                this comparison.
+              </p>
+            ) : (
+              <HistoryTabBody
+                historyLoading={historyLoading}
+                historyPriorDates={historyPriorDates}
+                historyPriorDate={historyPriorDate}
+                onChangeHistoryDate={setHistoryPriorDate}
+                currentRunDate={currentRunDate}
+                historyPriorLaunch={historyPriorLaunch}
+                currentLaunch={launch}
+                historyDiffLines={historyDiffLines}
+              />
             )
           ) : null}
         </div>
@@ -256,17 +364,141 @@ export default function ReproduceDrawer({ point, sequence, model, onClose }: Rep
   );
 }
 
+function DiffBlock({ lines }: { lines: DiffLine[] }) {
+  if (lines.length === 0) {
+    return <p className="text-xs text-muted-foreground">Nothing to diff.</p>;
+  }
+  const identical = lines.every((l) => l.type === 'same');
+  if (identical) {
+    return (
+      <p className="text-xs text-muted-foreground" data-testid="reproduce-drawer-history-identical">
+        No changes — the launch command text is identical for both runs.
+      </p>
+    );
+  }
+  return (
+    <div
+      className="max-h-[55vh] overflow-auto rounded-md border border-border/60 bg-muted/20 p-2 font-mono text-[11px] leading-snug"
+      data-testid="reproduce-drawer-history-diff"
+    >
+      {lines.map((l, i) => (
+        <div
+          key={i}
+          className={
+            l.type === 'removed'
+              ? 'bg-red-500/10 text-red-800 dark:text-red-300'
+              : l.type === 'added'
+                ? 'bg-green-500/10 text-green-800 dark:text-green-300'
+                : 'text-muted-foreground'
+          }
+        >
+          <span className="select-none opacity-70">
+            {l.type === 'removed' ? '-' : l.type === 'added' ? '+' : ' '}
+          </span>{' '}
+          {l.text}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function HistoryTabBody({
+  historyLoading,
+  historyPriorDates,
+  historyPriorDate,
+  onChangeHistoryDate,
+  currentRunDate,
+  historyPriorLaunch,
+  currentLaunch,
+  historyDiffLines,
+}: {
+  historyLoading: boolean;
+  historyPriorDates: string[];
+  historyPriorDate: string | null;
+  onChangeHistoryDate: (d: string | null) => void;
+  currentRunDate: string;
+  historyPriorLaunch: LaunchCommandResult | null;
+  currentLaunch: LaunchCommandResult | null;
+  historyDiffLines: DiffLine[];
+}) {
+  if (historyLoading) {
+    return <p className="text-xs text-muted-foreground">Loading benchmark history…</p>;
+  }
+  if (historyPriorDates.length === 0) {
+    return (
+      <p className="text-xs text-muted-foreground" data-testid="reproduce-drawer-history-empty">
+        No earlier successful runs found for this config on this sequence. The diff needs at least
+        one prior date with the same GPU, framework, precision, and parallelism settings.
+      </p>
+    );
+  }
+  return (
+    <div className="space-y-3">
+      <div className="space-y-1">
+        <label
+          htmlFor="reproduce-history-date"
+          className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
+        >
+          Earlier run to compare
+        </label>
+        <select
+          id="reproduce-history-date"
+          data-testid="reproduce-drawer-history-date"
+          className="block w-full max-w-md rounded-md border border-border bg-background px-2 py-1.5 text-xs font-mono"
+          value={historyPriorDate ?? ''}
+          onChange={(e) => onChangeHistoryDate(e.target.value || null)}
+        >
+          {historyPriorDates.map((d) => (
+            <option key={d} value={d}>
+              {d}
+            </option>
+          ))}
+        </select>
+      </div>
+      <p className="text-[11px] text-muted-foreground">
+        Launch command diff: <span className="font-mono">{historyPriorDate}</span>
+        {' → '}
+        <span className="font-mono">{currentRunDate}</span>
+      </p>
+      {historyPriorLaunch?.kind === 'fallback' || currentLaunch?.kind === 'fallback' ? (
+        <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-xs text-amber-800 dark:text-amber-300">
+          <p className="font-medium">No line diff for fallback launch text</p>
+          <p className="mt-1">One or both runs use a framework without an inline launch recipe.</p>
+          <div className="mt-2 grid gap-3 sm:grid-cols-2">
+            <div>
+              <p className="mb-1 text-[10px] font-semibold uppercase text-muted-foreground">
+                Earlier
+              </p>
+              <CodeBlock value={launchResultToPlainText(historyPriorLaunch)} language="bash" />
+            </div>
+            <div>
+              <p className="mb-1 text-[10px] font-semibold uppercase text-muted-foreground">
+                Current
+              </p>
+              <CodeBlock value={launchResultToPlainText(currentLaunch)} language="bash" />
+            </div>
+          </div>
+        </div>
+      ) : (
+        <DiffBlock lines={historyDiffLines} />
+      )}
+    </div>
+  );
+}
+
 interface TabButtonProps {
   label: string;
   active: boolean;
   onClick: () => void;
+  testId?: string;
 }
 
-function TabButton({ label, active, onClick }: TabButtonProps) {
+function TabButton({ label, active, onClick, testId }: TabButtonProps) {
   return (
     <button
       type="button"
       onClick={onClick}
+      data-testid={testId}
       className={`rounded-md px-2.5 py-1 text-xs transition-colors ${
         active ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground hover:bg-muted/60'
       }`}
@@ -305,7 +537,7 @@ function CopyButton({ onCopy, testId }: { onCopy: () => void | Promise<void>; te
   );
 }
 
-function CommandTab({ launch }: { launch: ReturnType<typeof buildLaunchCommand> | null }) {
+function CommandTab({ launch }: { launch: LaunchCommandResult | null }) {
   if (!launch) return null;
   if (launch.kind === 'fallback') {
     return (
