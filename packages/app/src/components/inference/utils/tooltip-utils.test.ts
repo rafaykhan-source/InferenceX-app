@@ -326,10 +326,40 @@ describe('generateOverlayTooltipContent', () => {
     expect(html).toContain('64');
   });
 
-  it('shows Reproduce discovery when not pinned', () => {
+  it('shows Reproduce discovery when not pinned (same hint as official scatter)', () => {
     const html = generateOverlayTooltipContent(overlayConfig({ isPinned: false }));
     expect(html).toContain('data-testid="tooltip-reproduce-discovery"');
+    expect(html).toContain('Reproduce and track over time');
     expect(html).not.toContain('data-action="reproduce"');
+  });
+
+  it('shows run link and pinned track + reproduce actions when pinned with runUrl', () => {
+    const html = generateOverlayTooltipContent(
+      overlayConfig({
+        isPinned: true,
+        runUrl: 'https://github.com/org/repo/actions/runs/99',
+        isTracked: false,
+      }),
+    );
+    expect(html).toContain('GitHub Actions Run');
+    expect(html).toContain('href="https://github.com/org/repo/actions/runs/99"');
+    expect(html).toContain('data-action="track-over-time"');
+    expect(html).toContain('Track Over Time');
+    expect(html).toContain('data-action="reproduce"');
+    expect(html).toContain('data-testid="tooltip-reproduce-btn"');
+    expect(html).not.toContain('data-testid="tooltip-reproduce-discovery"');
+  });
+
+  it('shows Untrack Over Time when pinned and already tracked', () => {
+    const html = generateOverlayTooltipContent(
+      overlayConfig({
+        isPinned: true,
+        runUrl: 'https://github.com/org/repo/actions/runs/1',
+        isTracked: true,
+      }),
+    );
+    expect(html).toContain('Untrack Over Time');
+    expect(html).not.toContain('Track Over Time');
   });
 });
 

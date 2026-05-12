@@ -152,13 +152,15 @@ export function InferenceProvider({
   const [reproducePoint, setReproducePoint] = useState<InferenceData | null>(null);
   const openReproduceDrawer = useCallback((point: InferenceData, source: string) => {
     setReproducePoint(point);
-    track('reproduce_drawer_open_clicked', {
+    // Single open event (include `source`) — avoids double-counting with a second fire in ReproduceDrawer.
+    track('reproduce_drawer_opened', {
       source,
       framework: point.framework,
       hwKey: point.hwKey,
       precision: point.precision,
       tp: point.tp,
       conc: point.conc,
+      disagg: Boolean(point.disagg),
     });
   }, []);
   const closeReproduceDrawer = useCallback(() => setReproducePoint(null), []);

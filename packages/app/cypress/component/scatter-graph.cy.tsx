@@ -246,4 +246,75 @@ describe('ScatterGraph', () => {
       .find('text')
       .should('contain.text', 'feature-branch');
   });
+
+  it('pins an overlay point and calls openReproduceDrawer from the pinned tooltip', () => {
+    const onOpenReproduce = cy.stub().as('onOpenReproduce');
+    const interactivityChartDef = createMockChartDefinition({
+      chartType: 'interactivity',
+      y_tpPerGpu_roofline: 'upper_left',
+    });
+    const officialData = [
+      createMockInferenceData({ hwKey: 'h100', x: 8, y: 240, precision: Precision.FP4 }),
+      createMockInferenceData({ hwKey: 'h100', x: 16, y: 200, precision: Precision.FP4 }),
+    ];
+    const overlayData = {
+      data: [
+        createMockInferenceData({
+          hwKey: 'b200_trt',
+          x: 8,
+          y: 320,
+          precision: Precision.FP4,
+          run_url: 'https://github.com/x/y/actions/runs/12345',
+        }),
+      ],
+      hardwareConfig: hwConfig,
+      label: 'feature-branch',
+      runUrl: 'https://github.com/x/y/actions/runs/12345',
+    };
+
+    mountWithProviders(
+      <div style={{ width: 800, height: 600 }}>
+        <ScatterGraph
+          chartId="test-scatter-overlay-tooltip"
+          modelLabel="DeepSeek R1"
+          data={officialData}
+          xLabel="Concurrency"
+          yLabel="Throughput / GPU (tok/s)"
+          chartDefinition={interactivityChartDef}
+          overlayData={overlayData}
+        />
+      </div>,
+      {
+        inference: {
+          hardwareConfig: hwConfig,
+          activeHwTypes: new Set(['h100']),
+          hwTypesWithData: new Set(['h100']),
+          selectedPrecisions: [Precision.FP4],
+          openReproduceDrawer: onOpenReproduce,
+        },
+        unofficial: {
+          activeOverlayHwTypes: new Set(['b200_trt']),
+          allOverlayHwTypes: new Set(['b200_trt']),
+          runIndexByUrl: { 'https://github.com/x/y/actions/runs/12345': 0, '12345': 0 },
+          unofficialRunInfos: [
+            {
+              id: 12345,
+              name: 'CI run',
+              branch: 'feature-branch',
+              sha: 'abc123',
+              createdAt: '2026-05-01T00:00:00Z',
+              url: 'https://github.com/x/y/actions/runs/12345',
+              conclusion: 'success',
+              status: 'completed',
+              isNonMainBranch: true,
+            },
+          ],
+        },
+      },
+    );
+
+    cy.get('#test-scatter-overlay-tooltip .unofficial-overlay-pt').first().click();
+    cy.get('[data-testid="tooltip-reproduce-btn"]').should('be.visible').click();
+    cy.get('@onOpenReproduce').should('have.been.calledOnce');
+  });
 });

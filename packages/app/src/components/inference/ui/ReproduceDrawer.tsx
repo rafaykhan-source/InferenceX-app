@@ -109,19 +109,6 @@ export default function ReproduceDrawer({ point, sequence, model, onClose }: Rep
     }
   }, [point]);
 
-  // Fire drawer-open analytics once per opened point.
-  useEffect(() => {
-    if (!point) return;
-    track('reproduce_drawer_opened', {
-      framework: point.framework,
-      hwKey: point.hwKey,
-      precision: point.precision,
-      tp: point.tp,
-      conc: point.conc,
-      disagg: Boolean(point.disagg),
-    });
-  }, [point]);
-
   const copyTextForActiveTab = (): string => {
     if (!point) return '';
     if (activeTab === 'config') return configJson;

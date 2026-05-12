@@ -105,7 +105,20 @@ const scatterReproduceDiscoveryHTML = reproduceDiscoveryHint(
 
 const gpuGraphReproduceDiscoveryHTML = reproduceDiscoveryHint('Click to pin to open Reproduce.');
 
-const overlayReproduceDiscoveryHTML = reproduceDiscoveryHint('Click to pin for more options.');
+/** Pinned scatter tooltip: track over time + reproduce (official and unofficial overlay). */
+const scatterPinnedTooltipActionsHTML = (isTracked: boolean | undefined): string => {
+  const tracked = isTracked === true;
+  return `<button data-action="track-over-time" style="
+              margin-top: 8px; width: 100%; padding: 4px 8px; font-size: 11px; font-weight: 500;
+              border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
+              background: var(--accent); color: var(--accent-foreground);
+            ">${tracked ? '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:-1px;margin-right:4px;"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>Untrack Over Time' : '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:-1px;margin-right:4px;"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>Track Over Time'}</button>
+            <button data-action="reproduce" data-testid="tooltip-reproduce-btn" style="
+              margin-top: 6px; width: 100%; padding: 4px 8px; font-size: 11px; font-weight: 500;
+              border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
+              background: var(--background); color: var(--foreground);
+            "><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:-1px;margin-right:4px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>Reproduce…</button>`;
+};
 
 /**
  * Generates HTML for the parallelism configuration section of a tooltip.
@@ -199,20 +212,7 @@ export const generateTooltipContent = (config: TooltipConfig): string => {
       </div>
       ${runLinkHTML(runUrl)}
       ${isPinned ? '' : scatterReproduceDiscoveryHTML}
-      ${
-        isPinned
-          ? `<button data-action="track-over-time" style="
-              margin-top: 8px; width: 100%; padding: 4px 8px; font-size: 11px; font-weight: 500;
-              border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
-              background: var(--accent); color: var(--accent-foreground);
-            ">${config.isTracked ? '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:-1px;margin-right:4px;"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>Untrack Over Time' : '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:-1px;margin-right:4px;"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>Track Over Time'}</button>
-            <button data-action="reproduce" data-testid="tooltip-reproduce-btn" style="
-              margin-top: 6px; width: 100%; padding: 4px 8px; font-size: 11px; font-weight: 500;
-              border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
-              background: var(--background); color: var(--foreground);
-            "><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:-1px;margin-right:4px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>Reproduce…</button>`
-          : ''
-      }
+      ${isPinned ? scatterPinnedTooltipActionsHTML(config.isTracked) : ''}
     </div>
   `;
 };
@@ -225,7 +225,7 @@ export const generateTooltipContent = (config: TooltipConfig): string => {
  * @returns HTML string for the tooltip content
  */
 export const generateOverlayTooltipContent = (config: OverlayTooltipConfig): string => {
-  const { data: d, isPinned, xLabel, yLabel, overlayData } = config;
+  const { data: d, isPinned, xLabel, yLabel, overlayData, runUrl, isTracked } = config;
   const hwConfig = overlayData.hardwareConfig[d.hwKey];
   const perRow = overlayData.getRunForRow?.(d);
   const branch = perRow?.branch ?? overlayData.label;
@@ -259,7 +259,9 @@ export const generateOverlayTooltipContent = (config: OverlayTooltipConfig): str
       <div style="color: var(--muted-foreground); font-size: 11px;">
         <strong>Precision:</strong> ${d.precision.toUpperCase()}
       </div>
-      ${isPinned ? '' : overlayReproduceDiscoveryHTML}
+      ${runLinkHTML(runUrl)}
+      ${isPinned ? '' : scatterReproduceDiscoveryHTML}
+      ${isPinned ? scatterPinnedTooltipActionsHTML(isTracked) : ''}
     </div>
   `;
 };

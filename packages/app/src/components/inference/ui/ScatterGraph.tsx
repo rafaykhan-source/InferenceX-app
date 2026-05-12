@@ -414,6 +414,45 @@ const ScatterGraph = React.memo(
     const trackedConfigIdsRef = useRef(trackedConfigIds);
     trackedConfigIdsRef.current = trackedConfigIds;
 
+    /** Wire track-over-time + reproduce on pinned scatter tooltip (official + overlay). */
+    const attachScatterPinnedTooltipListeners = useCallback(
+      (tooltipEl: HTMLElement, d: InferenceData) => {
+        const trackBtn = tooltipEl.querySelector('[data-action="track-over-time"]');
+        if (trackBtn) {
+          trackBtn.addEventListener('click', (btnEvent) => {
+            btnEvent.stopPropagation();
+            const configId = buildPointConfigId(d);
+            if (trackedConfigIdsRef.current.has(configId)) removeTrackedConfig(configId);
+            else addTrackedConfig(d, chartDefinition.chartType);
+            chartRef.current?.dismissTooltip();
+            chartRef.current?.hideTooltip();
+            track('latency_point_tracked_via_tooltip', {
+              hwKey: String(d.hwKey),
+              tp: d.tp,
+              conc: d.conc,
+              precision: d.precision,
+            });
+          });
+        }
+        const reproduceBtn = tooltipEl.querySelector('[data-action="reproduce"]');
+        if (reproduceBtn) {
+          reproduceBtn.addEventListener('click', (btnEvent) => {
+            btnEvent.stopPropagation();
+            openReproduceDrawer(d, 'scatter_tooltip');
+            chartRef.current?.dismissTooltip();
+            chartRef.current?.hideTooltip();
+          });
+        }
+      },
+      [
+        buildPointConfigId,
+        addTrackedConfig,
+        removeTrackedConfig,
+        chartDefinition.chartType,
+        openReproduceDrawer,
+      ],
+    );
+
     // --- Scale Domains ---
     // When hideNonOptimal is active, compute scale domains from optimal points only
     // so the axis fits the visible data (especially important for TTFT where non-optimal
@@ -658,36 +697,8 @@ const ScatterGraph = React.memo(
           ),
         onPointClick: (d: InferenceData) => {
           track('latency_data_point_clicked', { hw: String(d.hwKey), x: d.x, y: d.y });
-          // Attach track-over-time button handler in the tooltip
           const tooltipEl = chartRef.current?.getTooltipElement();
-          if (tooltipEl) {
-            const btn = tooltipEl.querySelector('[data-action="track-over-time"]');
-            if (btn) {
-              btn.addEventListener('click', (btnEvent) => {
-                btnEvent.stopPropagation();
-                const configId = buildPointConfigId(d);
-                if (trackedConfigIdsRef.current.has(configId)) removeTrackedConfig(configId);
-                else addTrackedConfig(d, chartDefinition.chartType);
-                chartRef.current?.dismissTooltip();
-                chartRef.current?.hideTooltip();
-                track('latency_point_tracked_via_tooltip', {
-                  hwKey: String(d.hwKey),
-                  tp: d.tp,
-                  conc: d.conc,
-                  precision: d.precision,
-                });
-              });
-            }
-            const reproduceBtn = tooltipEl.querySelector('[data-action="reproduce"]');
-            if (reproduceBtn) {
-              reproduceBtn.addEventListener('click', (btnEvent) => {
-                btnEvent.stopPropagation();
-                openReproduceDrawer(d, 'scatter_tooltip');
-                chartRef.current?.dismissTooltip();
-                chartRef.current?.hideTooltip();
-              });
-            }
-          }
+          if (tooltipEl) attachScatterPinnedTooltipListeners(tooltipEl, d);
         },
         attachToLayer: 1, // scatter layer is index 1 (after rooflines at 0)
       }),
@@ -702,6 +713,7 @@ const ScatterGraph = React.memo(
         chartDefinition.chartType,
         selectedPrecisions,
         openReproduceDrawer,
+        attachScatterPinnedTooltipListeners,
       ],
     );
 
@@ -1534,6 +1546,14 @@ const ScatterGraph = React.memo(
               const tooltipDiv = svgNode.nextElementSibling as HTMLDivElement;
               const tooltip = d3.select(tooltipDiv);
 
+              const resolveOverlayRunUrlForTooltip = (d: InferenceData): string | undefined => {
+                if (d.run_url) return updateRepoUrl(d.run_url);
+                const pr = overlayData.getRunForRow?.(d);
+                if (pr?.url) return updateRepoUrl(pr.url);
+                if (overlayData.runUrl) return updateRepoUrl(overlayData.runUrl);
+                return undefined;
+              };
+
               const createOverlayConfig = (d: InferenceData, pinned: boolean) => ({
                 data: d,
                 isPinned: pinned,
@@ -1542,6 +1562,8 @@ const ScatterGraph = React.memo(
                 selectedYAxisMetric,
                 hardwareConfig: overlayData.hardwareConfig,
                 overlayData,
+                isTracked: trackedConfigIdsRef.current.has(buildPointConfigId(d)),
+                runUrl: resolveOverlayRunUrlForTooltip(d),
               });
 
               overlayPoints
@@ -1601,6 +1623,7 @@ const ScatterGraph = React.memo(
                   zoomGroup.select('.horizontal-ruler').attr('y1', curY(d.y)).attr('y2', curY(d.y));
 
                   chartRef.current?.pinTooltip(d, true);
+                  attachScatterPinnedTooltipListeners(tooltipDiv, d);
                   track('latency_data_point_clicked', {
                     hw: String(d.hwKey),
                     x: d.x,
@@ -1767,6 +1790,7 @@ const ScatterGraph = React.memo(
       selectedYAxisMetric,
       chartDefinition,
       chartDefinition.chartType,
+      attachScatterPinnedTooltipListeners,
     ]);
 
     // --- onRender: tracked rings, CSS transitions, log tick formatting, dblclick ---
