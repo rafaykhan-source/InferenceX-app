@@ -101,3 +101,62 @@ describe('GET /api/v1/run-environment', () => {
     expect(res.status).toBe(500);
   });
 });
+
+// Separate suite because FIXTURES_MODE is read at module-eval time — the only
+// way to flip it for a single test is to reset module cache + dynamic-import.
+describe('GET /api/v1/run-environment (FIXTURES_MODE)', () => {
+  it('short-circuits to the loaded fixture and never hits the env query', async () => {
+    vi.resetModules();
+    const mockLoadFixture = vi.fn(() => ({
+      workflow_run_id: 1,
+      config_id: 1,
+      environment: { ...env, source: 'log_parse' },
+    }));
+    vi.doMock('@semianalysisai/inferencex-db/connection', () => ({
+      getDb: mockGetDb,
+      JSON_MODE: false,
+      FIXTURES_MODE: true,
+    }));
+    vi.doMock('@semianalysisai/inferencex-db/queries/environments', () => ({
+      getEnvironmentForRunConfig: mockGetEnvironment,
+    }));
+    vi.doMock('@/lib/api-cache', () => ({
+      cachedQuery: (fn: (...args: any[]) => any) => fn,
+      cachedJson: (data: unknown) => Response.json(data),
+    }));
+    vi.doMock('@/lib/test-fixtures', () => ({ loadFixture: mockLoadFixture }));
+
+    const { GET: GETwithFixtures } = await import('./route');
+    const res = await GETwithFixtures(req(`/api/v1/run-environment?${VALID_QS}`));
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.environment.source).toBe('log_parse');
+    expect(mockLoadFixture).toHaveBeenCalledWith('run-environment');
+    expect(mockGetEnvironment).not.toHaveBeenCalled();
+  });
+
+  it('still 400s on missing params before consulting the fixture', async () => {
+    vi.resetModules();
+    const mockLoadFixture = vi.fn();
+    vi.doMock('@semianalysisai/inferencex-db/connection', () => ({
+      getDb: mockGetDb,
+      JSON_MODE: false,
+      FIXTURES_MODE: true,
+    }));
+    vi.doMock('@semianalysisai/inferencex-db/queries/environments', () => ({
+      getEnvironmentForRunConfig: mockGetEnvironment,
+    }));
+    vi.doMock('@/lib/api-cache', () => ({
+      cachedQuery: (fn: (...args: any[]) => any) => fn,
+      cachedJson: (data: unknown) => Response.json(data),
+    }));
+    vi.doMock('@/lib/test-fixtures', () => ({ loadFixture: mockLoadFixture }));
+
+    const { GET: GETwithFixtures } = await import('./route');
+    const res = await GETwithFixtures(req('/api/v1/run-environment?config_id=42'));
+
+    expect(res.status).toBe(400);
+    expect(mockLoadFixture).not.toHaveBeenCalled();
+  });
+});

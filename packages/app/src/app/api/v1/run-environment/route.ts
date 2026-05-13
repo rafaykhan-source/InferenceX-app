@@ -1,10 +1,11 @@
 import { type NextRequest, NextResponse } from 'next/server';
 
-import { JSON_MODE, getDb } from '@semianalysisai/inferencex-db/connection';
+import { FIXTURES_MODE, JSON_MODE, getDb } from '@semianalysisai/inferencex-db/connection';
 import * as jsonProvider from '@semianalysisai/inferencex-db/json-provider';
 import { getEnvironmentForRunConfig } from '@semianalysisai/inferencex-db/queries/environments';
 
 import { cachedJson, cachedQuery } from '@/lib/api-cache';
+import { loadFixture } from '@/lib/test-fixtures';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,6 +37,8 @@ export async function GET(request: NextRequest) {
       { status: 400 },
     );
   }
+
+  if (FIXTURES_MODE) return cachedJson(loadFixture('run-environment'));
 
   try {
     const env = await getCachedEnvironment(workflowRunId, configId);
