@@ -5,6 +5,8 @@ import { Check, Copy, ExternalLink } from 'lucide-react';
 
 import type { InferenceData } from '@/components/inference/types';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { useRunEnvironment } from '@/hooks/api/use-run-environment';
+import type { BenchmarkEnvironment } from '@/lib/api';
 import { track } from '@/lib/analytics';
 import { getHardwareConfig } from '@/lib/constants';
 import { buildLaunchCommand } from '@/lib/reproduce-command';
@@ -95,27 +97,19 @@ export default function ReproduceDrawer({ point, sequence, model, onClose }: Rep
     });
   }, [point]);
 
+  // Fetch authoritative env metadata (driver / CUDA / framework SHA / etc.)
+  // for this benchmark row, keyed by (workflow_run_id, config_id) — the
+  // natural key of `benchmark_environments`. The hook is a no-op when
+  // either id is missing (e.g. synthetic overlay points), and the UI
+  // degrades to the point-derived fields below.
+  const envQuery = useRunEnvironment(point?.workflowRunId, point?.configId);
+  const env = envQuery.data?.environment;
+
   const copyTextForActiveTab = (): string => {
     if (!point) return '';
     if (activeTab === 'config') return configJson;
     if (activeTab === 'environment') {
-      return [
-        `GPU: ${hwLabel}`,
-        `Framework: ${point.framework ?? '(unknown)'}`,
-        point.precision ? `Precision: ${point.precision.toUpperCase()}` : '',
-        point.image ? `Container image: ${point.image}` : '',
-        point.spec_decoding && point.spec_decoding !== 'none'
-          ? `Speculative decoding: ${point.spec_decoding}`
-          : '',
-        point.actualDate
-          ? `Run date: ${point.actualDate}`
-          : point.date
-            ? `Run date: ${point.date}`
-            : '',
-        runUrl ? `Run URL: ${runUrl}` : '',
-      ]
-        .filter(Boolean)
-        .join('\n');
+      return buildEnvironmentCopyText({ point, hwLabel, runUrl, env });
     }
     if (!launch) return '';
     if (launch.kind === 'single' && launch.command) return launch.command;
@@ -233,7 +227,13 @@ export default function ReproduceDrawer({ point, sequence, model, onClose }: Rep
             ) : activeTab === 'config' ? (
               <CodeBlock value={configJson} language="json" />
             ) : (
-              <EnvironmentTab point={point} hwLabel={hwLabel} runUrl={runUrl} />
+              <EnvironmentTab
+                point={point}
+                hwLabel={hwLabel}
+                runUrl={runUrl}
+                env={env}
+                isLoading={envQuery.isLoading}
+              />
             )
           ) : null}
         </div>
@@ -321,44 +321,101 @@ function CommandTab({ launch }: { launch: ReturnType<typeof buildLaunchCommand> 
   return null;
 }
 
-function EnvironmentTab({
-  point,
-  hwLabel,
-  runUrl,
-}: {
-  point: InferenceData;
-  hwLabel: string;
-  runUrl?: string;
-}) {
-  const rows: { label: string; value: string | undefined }[] = [
-    { label: 'GPU', value: hwLabel },
-    { label: 'Framework', value: point.framework },
+/**
+ * Build the labeled rows for the Environment tab. Centralized so the
+ * rendered UI and the copy-to-clipboard output stay in sync — adding a new
+ * field means changing one place.
+ *
+ * `env` is the authoritative response from `/api/v1/run-environment`. When
+ * absent (loading, 404, or synthetic overlay point) the rows fall back to
+ * what we can derive from `point` alone. Rows whose value is `null` or
+ * `undefined` render as italic "(not recorded)".
+ */
+/** Pure helper — undefined ⟶ null so the render-time fallback handles both. */
+const fromEnv = (v: string | null | undefined) => v ?? null;
+
+function buildEnvironmentRows(
+  point: InferenceData,
+  hwLabel: string,
+  runUrl: string | undefined,
+  env: BenchmarkEnvironment | undefined,
+): { label: string; value: string | null }[] {
+  return [
+    { label: 'GPU', value: hwLabel || null },
+    { label: 'GPU SKU', value: fromEnv(env?.gpu_sku) },
+    { label: 'Framework', value: point.framework ?? null },
+    { label: 'Framework version', value: fromEnv(env?.framework_version) },
+    { label: 'Framework SHA', value: fromEnv(env?.framework_sha) },
     {
       label: 'Precision',
-      value: point.precision ? point.precision.toUpperCase() : undefined,
+      value: point.precision ? point.precision.toUpperCase() : null,
     },
     {
       label: 'Speculative decoding',
       value: point.spec_decoding && point.spec_decoding !== 'none' ? point.spec_decoding : 'none',
     },
-    { label: 'Container image', value: point.image },
-    {
-      label: 'Run date',
-      value: point.actualDate ?? point.date,
-    },
-    { label: 'Workflow run', value: runUrl },
+    { label: 'Container image', value: env?.image ?? point.image ?? null },
+    { label: 'Driver', value: fromEnv(env?.driver_version) },
+    { label: 'CUDA', value: fromEnv(env?.cuda_version) },
+    { label: 'ROCm', value: fromEnv(env?.rocm_version) },
+    { label: 'PyTorch', value: fromEnv(env?.torch_version) },
+    { label: 'Python', value: fromEnv(env?.python_version) },
+    { label: 'Run date', value: point.actualDate ?? point.date ?? null },
+    { label: 'Workflow run', value: runUrl ?? null },
   ];
+}
+
+function buildEnvironmentCopyText(args: {
+  point: InferenceData;
+  hwLabel: string;
+  runUrl: string | undefined;
+  env: BenchmarkEnvironment | undefined;
+}): string {
+  return buildEnvironmentRows(args.point, args.hwLabel, args.runUrl, args.env)
+    .filter((r) => r.value !== null)
+    .map((r) => `${r.label}: ${r.value}`)
+    .join('\n');
+}
+
+function EnvironmentTab({
+  point,
+  hwLabel,
+  runUrl,
+  env,
+  isLoading,
+}: {
+  point: InferenceData;
+  hwLabel: string;
+  runUrl?: string;
+  env: BenchmarkEnvironment | undefined;
+  isLoading: boolean;
+}) {
+  const rows = buildEnvironmentRows(point, hwLabel, runUrl, env);
   return (
-    <dl className="space-y-2 text-xs">
-      {rows.map(({ label, value }) => (
-        <div key={label} className="grid grid-cols-[140px_1fr] gap-2">
-          <dt className="text-muted-foreground">{label}</dt>
-          <dd className="break-all font-mono">
-            {value || <span className="italic text-muted-foreground">(not recorded)</span>}
-          </dd>
-        </div>
-      ))}
-    </dl>
+    <div className="space-y-2 text-xs">
+      {env?.source === 'log_parse' && (
+        <p
+          className="text-[10px] italic text-muted-foreground"
+          data-testid="reproduce-drawer-env-approximate"
+        >
+          Some fields are approximated from the server log; consult the run URL for the
+          authoritative environment.
+        </p>
+      )}
+      {isLoading && !env ? (
+        <p className="text-[10px] italic text-muted-foreground">Loading environment…</p>
+      ) : null}
+      <dl className="space-y-2">
+        {rows.map(({ label, value }) => (
+          <div key={label} className="grid grid-cols-[140px_1fr] gap-2">
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd className="break-all font-mono">
+              {value || <span className="italic text-muted-foreground">(not recorded)</span>}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }
 

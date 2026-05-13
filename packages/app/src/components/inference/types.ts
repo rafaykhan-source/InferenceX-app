@@ -88,6 +88,14 @@ export interface AggDataEntry {
   actualDate?: string;
   /** URL to the GitHub Actions workflow run that produced this data point. */
   run_url?: string;
+  /**
+   * Natural-key halves for the Reproduce Drawer's Environment tab — together
+   * they key `/api/v1/run-environment`. Both are optional because client-only
+   * synthetic points (e.g. overlay rooflines, unofficial-run rows) don't
+   * originate from a DB row.
+   */
+  workflowRunId?: number;
+  configId?: number;
 }
 
 /**

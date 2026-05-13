@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo } from 'react';
-import { Wrench } from 'lucide-react';
 
 import { useInference } from '@/components/inference/InferenceContext';
 import type { ChartDefinition, InferenceData } from '@/components/inference/types';
@@ -114,34 +113,8 @@ export default function InferenceTable({
         sortValue: (row) => row.median_intvty ?? 0,
         className: 'tabular-nums',
       },
-      {
-        header: '',
-        align: 'center',
-        cell: (row) => (
-          <button
-            type="button"
-            onClick={() => {
-              track('inference_table_reproduce_clicked', {
-                framework: row.framework,
-                hwKey: row.hwKey,
-                precision: row.precision,
-                tp: row.tp,
-                conc: row.conc,
-              });
-              openReproduceDrawer(row, 'inference_table');
-            }}
-            className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-[11px] hover:bg-muted"
-            data-testid="inference-table-reproduce-btn"
-            aria-label="Reproduce this benchmark"
-          >
-            <Wrench className="size-3" aria-hidden="true" />
-            Reproduce
-          </button>
-        ),
-        className: 'whitespace-nowrap',
-      },
     ],
-    [yPath, yLabel, xLabel, openReproduceDrawer],
+    [yPath, yLabel, xLabel],
   );
 
   return (
@@ -150,6 +123,16 @@ export default function InferenceTable({
       columns={columns}
       testId="inference-results-table"
       analyticsPrefix="inference_table"
+      onRowClick={(row) => {
+        track('inference_table_reproduce_clicked', {
+          framework: row.framework,
+          hwKey: row.hwKey,
+          precision: row.precision,
+          tp: row.tp,
+          conc: row.conc,
+        });
+        openReproduceDrawer(row, 'inference_table');
+      }}
     />
   );
 }

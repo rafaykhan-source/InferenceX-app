@@ -15,10 +15,10 @@ describe('Reproduce drawer', () => {
       .should('have.length.greaterThan', 0);
   });
 
-  it('opens from the inference table Reproduce button and shows the three tabs', () => {
+  it('opens from clicking an inference table row and shows the three tabs', () => {
     cy.get('[data-testid="inference-table-view-btn"]').first().click();
     cy.get('[data-testid="inference-results-table"]').should('be.visible');
-    cy.get('[data-testid="inference-table-reproduce-btn"]').first().click();
+    cy.get('[data-testid="inference-results-table"] tbody tr').first().click();
 
     cy.get('[data-testid="reproduce-drawer"]').should('be.visible');
     cy.contains('Reproduce this benchmark').should('be.visible');
@@ -29,7 +29,7 @@ describe('Reproduce drawer', () => {
 
   it('exposes a copy button on every tab', () => {
     cy.get('[data-testid="inference-table-view-btn"]').first().click();
-    cy.get('[data-testid="inference-table-reproduce-btn"]').first().click();
+    cy.get('[data-testid="inference-results-table"] tbody tr').first().click();
     cy.get('[data-testid="reproduce-drawer-copy"]').should('be.visible');
     cy.contains('button', 'Config JSON').click();
     cy.get('[data-testid="reproduce-drawer-copy"]').should('be.visible');
@@ -39,7 +39,7 @@ describe('Reproduce drawer', () => {
 
   it('Config JSON tab shows config fields and excludes result metrics', () => {
     cy.get('[data-testid="inference-table-view-btn"]').first().click();
-    cy.get('[data-testid="inference-table-reproduce-btn"]').first().click();
+    cy.get('[data-testid="inference-results-table"] tbody tr').first().click();
     cy.contains('button', 'Config JSON').click();
     cy.get('[data-testid="reproduce-drawer"]')
       .find('pre')
@@ -57,10 +57,34 @@ describe('Reproduce drawer', () => {
       });
   });
 
+  it('Environment tab renders structured rows including env-only fields with graceful fallback', () => {
+    cy.get('[data-testid="inference-table-view-btn"]').first().click();
+    cy.get('[data-testid="inference-results-table"] tbody tr').first().click();
+    cy.contains('button', 'Environment').click();
+    // Core rows are always rendered. The values come from /api/v1/run-environment
+    // when available; otherwise they show "(not recorded)" — we assert the
+    // labels exist either way so a regression that drops a row is caught.
+    const labels = [
+      'GPU',
+      'GPU SKU',
+      'Framework',
+      'Framework version',
+      'Framework SHA',
+      'Container image',
+      'Driver',
+      'CUDA',
+      'PyTorch',
+      'Python',
+    ];
+    for (const label of labels) {
+      cy.get('[data-testid="reproduce-drawer"]').contains('dt', label).should('be.visible');
+    }
+  });
+
   it('Esc closes the drawer without changing the URL hash', () => {
     cy.get('[data-testid="inference-table-view-btn"]').first().click();
     cy.url().then((before) => {
-      cy.get('[data-testid="inference-table-reproduce-btn"]').first().click();
+      cy.get('[data-testid="inference-results-table"] tbody tr').first().click();
       cy.get('[data-testid="reproduce-drawer"]').should('be.visible');
       cy.get('body').type('{esc}');
       cy.get('[data-testid="reproduce-drawer"]').should('not.exist');
@@ -72,7 +96,7 @@ describe('Reproduce drawer', () => {
     // Re-visit with the overlay query param. We do NOT assert which row is
     // rendered — we only assert the drawer can be opened from whatever points
     // appear for the official path on top of the overlay. The wiring is the
-    // same code path: clicking a Reproduce control feeds the InferenceData
+    // same code path: clicking an inference table row feeds the InferenceData
     // through to the drawer regardless of where the row originated.
     const candidateRunId = '15000000000';
     cy.visit(`/inference?unofficialrun=${candidateRunId}`);
@@ -82,7 +106,7 @@ describe('Reproduce drawer', () => {
       .should('have.length.greaterThan', 0);
     cy.get('[data-testid="inference-table-view-btn"]').first().click();
     cy.get('[data-testid="inference-results-table"]').should('be.visible');
-    cy.get('[data-testid="inference-table-reproduce-btn"]').first().click();
+    cy.get('[data-testid="inference-results-table"] tbody tr').first().click();
     cy.get('[data-testid="reproduce-drawer"]').should('be.visible');
     // Same Config JSON guarantee for the overlay path — the drawer renders
     // overlay points through the same `InferenceData` shape, so result-metric

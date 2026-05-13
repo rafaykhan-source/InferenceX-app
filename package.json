@@ -37,6 +37,7 @@
     "admin:db:load-dump": "pnpm --filter *db db:load-dump --",
     "admin:db:migrate": "pnpm --filter *db db:migrate",
     "admin:db:apply-overrides": "pnpm --filter *db db:apply-overrides",
+    "admin:db:backfill:envs": "pnpm --filter *db db:backfill:envs",
     "admin:db:reset": "pnpm --filter *db db:reset",
     "admin:db:verify": "pnpm --filter *db db:verify"
   },
