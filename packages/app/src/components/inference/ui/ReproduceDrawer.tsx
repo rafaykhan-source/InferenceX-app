@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { track } from '@/lib/analytics';
 import { getHardwareConfig } from '@/lib/constants';
 import { buildLaunchCommand } from '@/lib/reproduce-command';
+import { buildReproduceConfig } from '@/lib/reproduce-config';
 import { getDisplayLabel, updateRepoUrl } from '@/lib/utils';
 
 type DrawerTab = 'command' | 'config' | 'environment';
@@ -66,38 +67,10 @@ export default function ReproduceDrawer({ point, sequence, model, onClose }: Rep
     });
   }, [point, sequence?.isl, sequence?.osl, model]);
 
-  const configJson = useMemo(() => {
-    if (!point) return '';
-    // Strip chart-only derived fields — keep the raw benchmark identity. This is
-    // the JSON the user can copy and feed back as a future config diff input.
-    const {
-      x: _x,
-      y: _y,
-      hidden: _hidden,
-      tpPerGpu: _tpg,
-      tpPerMw: _tpm,
-      outputTputPerGpu: _otg,
-      inputTputPerGpu: _itg,
-      outputTputPerMw: _otm,
-      inputTputPerMw: _itm,
-      costh: _ch,
-      costn: _cn,
-      costr: _cr,
-      costhi: _chi,
-      costni: _cni,
-      costri: _cri,
-      costhOutput: _cho,
-      costnOutput: _cno,
-      costrOutput: _cro,
-      costUser: _cu,
-      powerUser: _pu,
-      jTotal: _jt,
-      jOutput: _jo,
-      jInput: _ji,
-      ...essentials
-    } = point;
-    return JSON.stringify(essentials, null, 2);
-  }, [point]);
+  const configJson = useMemo(
+    () => (point ? JSON.stringify(buildReproduceConfig(point, sequence), null, 2) : ''),
+    [point, sequence],
+  );
 
   const runUrl = point?.run_url ? updateRepoUrl(point.run_url) : undefined;
   const hwLabel = useMemo(() => {
@@ -254,13 +227,15 @@ export default function ReproduceDrawer({ point, sequence, model, onClose }: Rep
         </div>
 
         <div className="overflow-auto px-4 py-3">
-          {!point ? null : activeTab === 'command' ? (
-            <CommandTab launch={launch} />
-          ) : activeTab === 'config' ? (
-            <CodeBlock value={configJson} language="json" />
-          ) : (
-            <EnvironmentTab point={point} hwLabel={hwLabel} runUrl={runUrl} />
-          )}
+          {point ? (
+            activeTab === 'command' ? (
+              <CommandTab launch={launch} />
+            ) : activeTab === 'config' ? (
+              <CodeBlock value={configJson} language="json" />
+            ) : (
+              <EnvironmentTab point={point} hwLabel={hwLabel} runUrl={runUrl} />
+            )
+          ) : null}
         </div>
       </DialogContent>
     </Dialog>

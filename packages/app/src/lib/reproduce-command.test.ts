@@ -44,7 +44,7 @@ describe('buildLaunchCommand', () => {
         spec_decoding: 'mtp',
       });
       // JSON gets shell-quoted because of the curly braces / quotes.
-      expect(result.command).toMatch(/--speculative-config '\{"method":"mtp"\}'/);
+      expect(result.command).toMatch(/--speculative-config '\{"method":"mtp"\}'/u);
     });
 
     it('omits speculative-config when spec_decoding is "none"', () => {
@@ -135,7 +135,7 @@ describe('buildLaunchCommand', () => {
       });
       // The flag is a single token because --speculative_config=... has no
       // space separator. The shell quoter kicks in because of the curly braces.
-      expect(result.command).toMatch(/--speculative_config=\{"decoding_type":"MTP"\}/);
+      expect(result.command).toMatch(/--speculative_config=\{"decoding_type":"MTP"\}/u);
     });
   });
 
@@ -192,11 +192,11 @@ describe('buildLaunchCommand', () => {
 
   describe('compound / orchestrator frameworks → fallback', () => {
     const compounds = [
-      ['atom', /ATOM/],
-      ['mori-sglang', /MoRI/],
-      ['dynamo-vllm', /Dynamo vLLM/],
-      ['dynamo-trt', /Dynamo TRT/],
-      ['dynamo-sglang', /Dynamo SGLang/],
+      ['atom', /ATOM/u],
+      ['mori-sglang', /MoRI/u],
+      ['dynamo-vllm', /Dynamo vLLM/u],
+      ['dynamo-trt', /Dynamo TRT/u],
+      ['dynamo-sglang', /Dynamo SGLang/u],
     ] as const;
 
     it.each(compounds)('returns kind="fallback" for %s', (fw, msgRe) => {

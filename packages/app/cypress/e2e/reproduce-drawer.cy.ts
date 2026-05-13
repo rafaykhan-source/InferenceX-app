@@ -37,6 +37,26 @@ describe('Reproduce drawer', () => {
     cy.get('[data-testid="reproduce-drawer-copy"]').should('be.visible');
   });
 
+  it('Config JSON tab shows config fields and excludes result metrics', () => {
+    cy.get('[data-testid="inference-table-view-btn"]').first().click();
+    cy.get('[data-testid="inference-table-reproduce-btn"]').first().click();
+    cy.contains('button', 'Config JSON').click();
+    cy.get('[data-testid="reproduce-drawer"]')
+      .find('pre')
+      .first()
+      .invoke('text')
+      .then((text) => {
+        // Config / identity fields belong here.
+        expect(text).to.match(/"framework":/u);
+        expect(text).to.match(/"precision":/u);
+        expect(text).to.match(/"tp":/u);
+        // Raw result metrics from `benchmark_results.metrics` must NOT leak in.
+        expect(text).not.to.match(/"mean_ttft":/u);
+        expect(text).not.to.match(/"p99_e2el":/u);
+        expect(text).not.to.match(/"tput_per_gpu":/u);
+      });
+  });
+
   it('Esc closes the drawer without changing the URL hash', () => {
     cy.get('[data-testid="inference-table-view-btn"]').first().click();
     cy.url().then((before) => {
@@ -64,5 +84,18 @@ describe('Reproduce drawer', () => {
     cy.get('[data-testid="inference-results-table"]').should('be.visible');
     cy.get('[data-testid="inference-table-reproduce-btn"]').first().click();
     cy.get('[data-testid="reproduce-drawer"]').should('be.visible');
+    // Same Config JSON guarantee for the overlay path — the drawer renders
+    // overlay points through the same `InferenceData` shape, so result-metric
+    // leakage would silently regress there too if we didn't assert it.
+    cy.contains('button', 'Config JSON').click();
+    cy.get('[data-testid="reproduce-drawer"]')
+      .find('pre')
+      .first()
+      .invoke('text')
+      .then((text) => {
+        expect(text).to.match(/"framework":/u);
+        expect(text).not.to.match(/"mean_ttft":/u);
+        expect(text).not.to.match(/"tput_per_gpu":/u);
+      });
   });
 });

@@ -75,7 +75,7 @@ const FALLBACK_REASONS: Record<string, string> = {
 /** Format a single-line CLI command from an array of args, escaping where needed. */
 const joinArgs = (args: string[]): string => args.filter(Boolean).map(quoteIfNeeded).join(' ');
 
-const QUOTE_RE = /[^A-Za-z0-9._\-/=:,@%+]/;
+const QUOTE_RE = /[^A-Za-z0-9._\-/=:,@%+]/u;
 const quoteIfNeeded = (s: string): string => {
   if (s === '') return "''";
   // Already a quoted block (e.g. a multi-flag chunk) — leave as-is.
