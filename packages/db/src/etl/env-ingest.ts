@@ -6,8 +6,8 @@
  *   - source = 'log_parse': only fill columns that are still NULL (COALESCE),
  *                           and never demote a row that's already env_json.
  *
- * This means the backfill (log fallback) and live ingest (env.json + log
- * fallback) can run in any order without clobbering authoritative data.
+ * This means log-parse fallback from ingest and authoritative env.json ingest
+ * can run in any order without clobbering authoritative data.
  */
 
 import type postgres from 'postgres';
