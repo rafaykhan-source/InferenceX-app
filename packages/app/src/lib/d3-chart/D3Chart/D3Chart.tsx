@@ -24,6 +24,8 @@ function D3ChartInner<T>(
     testId,
     grabCursor = true,
     instructions,
+    legendWrapper,
+    compactLegend,
     clipContent,
     xScale: xScaleConfig,
     yScale: yScaleConfig,
@@ -148,6 +150,8 @@ function D3ChartInner<T>(
       testId={testId}
       grabCursor={grabCursor}
       legendElement={legendElement}
+      legendWrapper={legendWrapper}
+      compactLegend={compactLegend}
       noDataOverlay={noDataOverlay}
       caption={caption}
     />

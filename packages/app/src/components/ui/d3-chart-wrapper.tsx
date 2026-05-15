@@ -16,6 +16,9 @@ export interface D3ChartWrapperProps {
     svgRef: React.RefObject<SVGSVGElement | null>,
   ) => void;
   legendElement: React.ReactNode;
+  legendWrapper?: (legend: React.ReactNode) => React.ReactNode;
+  /** When true, removes the fixed h-96 on the legend container at narrow widths so it sizes to content. */
+  compactLegend?: boolean;
   noDataOverlay?: React.ReactNode;
   caption?: React.ReactNode;
   instructions?: string;
@@ -34,6 +37,8 @@ export function D3ChartWrapper({
   dismissTooltip,
   hideTooltipElements,
   legendElement,
+  legendWrapper,
+  compactLegend = false,
   noDataOverlay,
   caption,
   instructions = 'Shift+Scroll to zoom • Drag to pan • Double-click to reset • Click a point to pin tooltip',
@@ -91,8 +96,14 @@ export function D3ChartWrapper({
           </div>
         </div>
         {legendElement && (
-          <div className="w-full h-96 lg:h-[575px] lg:w-48 lg:shrink-0 relative mt-3 lg:mt-0">
-            {legendElement}
+          <div
+            className={
+              compactLegend
+                ? 'w-full lg:h-[575px] lg:w-48 lg:shrink-0 relative mt-3 lg:mt-0 lg:overflow-hidden'
+                : 'w-full h-96 lg:h-[575px] lg:w-48 lg:shrink-0 relative mt-3 lg:mt-0'
+            }
+          >
+            {legendWrapper ? legendWrapper(legendElement) : legendElement}
           </div>
         )}
       </div>

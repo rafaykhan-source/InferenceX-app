@@ -264,6 +264,8 @@ export interface D3ChartProps<T = any> {
 
   transitionDuration?: number;
   legendElement?: React.ReactNode;
+  legendWrapper?: (legend: React.ReactNode) => React.ReactNode;
+  compactLegend?: boolean;
   noDataOverlay?: React.ReactNode;
   caption?: React.ReactNode;
 

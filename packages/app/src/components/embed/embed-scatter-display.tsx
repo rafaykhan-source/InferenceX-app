@@ -1,11 +1,12 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import { useInference } from '@/components/inference/InferenceContext';
 import type { InferenceData, OverlayData } from '@/components/inference/types';
 import { processOverlayChartData } from '@/components/inference/utils';
 import ScatterGraph from '@/components/inference/ui/ScatterGraph';
+import { EmbedLegendWrapper } from '@/components/embed/embed-legend-wrapper';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useUnofficialRun } from '@/components/unofficial-run-provider';
@@ -110,6 +111,11 @@ export default function EmbedScatterDisplay({ chartType }: Props) {
     [graphs, chartType],
   );
 
+  const wrapLegend = useCallback(
+    (legend: React.ReactNode) => <EmbedLegendWrapper>{legend}</EmbedLegendWrapper>,
+    [],
+  );
+
   const isFirstLoad = loading && graphs.length === 0;
 
   if (isFirstLoad || !targetGraph) {
@@ -165,6 +171,10 @@ export default function EmbedScatterDisplay({ chartType }: Props) {
           chartDefinition={targetGraph.chartDefinition}
           caption={caption}
           overlayData={overlay ?? undefined}
+          legendWrapper={wrapLegend}
+          instructions=""
+          disableLegendExpand={true}
+          compactLegend={true}
         />
       </Card>
     </figure>
