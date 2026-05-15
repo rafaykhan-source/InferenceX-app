@@ -8,6 +8,7 @@ import chartDefinitions from '@/components/inference/inference-chart-config.json
 import { useInference } from '@/components/inference/InferenceContext';
 import type {
   ChartDefinition,
+  HardwareConfig,
   InferenceData,
   OverlayData,
   TrendDataPoint,
@@ -42,6 +43,7 @@ import {
 } from '@/lib/data-mappings';
 import { useComparisonChangelogs } from '@/hooks/api/use-comparison-changelogs';
 import { useTrendData } from '@/components/inference/hooks/useTrendData';
+import { hardwareKeyMatchesAnyBase } from '@/lib/constants';
 
 import ChartControls from './ChartControls';
 import ComparisonChangelog from './ComparisonChangelog';
@@ -150,6 +152,7 @@ export default function ChartDisplay() {
     activeHwTypes,
     activeDates,
     setSelectedE2eXAxisMetric,
+    compareGpuPair,
   } = useInference();
 
   const {
@@ -209,11 +212,23 @@ export default function ChartDisplay() {
         effectiveXMetric,
       );
 
-      if (processed.length === 0) return null;
+      let overlayPoints = processed;
+      if (compareGpuPair?.length === 2) {
+        overlayPoints = processed.filter((p) =>
+          hardwareKeyMatchesAnyBase(String(p.hwKey), compareGpuPair),
+        );
+      }
+
+      if (overlayPoints.length === 0) return null;
+
+      const keySet = new Set(overlayPoints.map((p) => String(p.hwKey)));
+      const hardwareConfigFiltered = Object.fromEntries(
+        Object.entries(rawData.hardwareConfig).filter(([k]) => keySet.has(k)),
+      ) as HardwareConfig;
 
       return {
-        data: processed,
-        hardwareConfig: rawData.hardwareConfig,
+        data: overlayPoints,
+        hardwareConfig: hardwareConfigFiltered,
         label: unofficialRunInfo.branch,
         runUrl: unofficialRunInfo.url,
         getRunForRow,
@@ -234,6 +249,7 @@ export default function ChartDisplay() {
     selectedYAxisMetric,
     selectedXAxisMetric,
     selectedE2eXAxisMetric,
+    compareGpuPair,
   ]);
 
   // Resolve x-axis field per chart type for trend data

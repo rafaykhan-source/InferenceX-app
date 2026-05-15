@@ -546,6 +546,8 @@ export interface InferenceChartContextType {
   activePresetId: string | null;
   setActivePresetId: (id: string | null) => void;
   presetGuardRef: React.RefObject<boolean>;
+  /** Compare pages only: slug GPU pair used to filter benchmark series. */
+  compareGpuPair: readonly [string, string] | null;
 }
 export interface CalculateUserCostsRequest {
   model: string;
