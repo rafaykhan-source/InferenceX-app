@@ -160,8 +160,11 @@ export default function EmbedScatterDisplay({ chartType }: Props) {
       : overlayDataByChartType.interactivity;
 
   return (
-    <figure data-testid="embed-scatter-figure" className="relative rounded-lg">
-      <Card>
+    <figure
+      data-testid="embed-scatter-figure"
+      className="relative flex h-full min-h-0 flex-col rounded-lg"
+    >
+      <Card className="flex h-full min-h-0 flex-col">
         <ScatterGraph
           chartId="embed-chart"
           modelLabel={targetGraph.model}
@@ -175,6 +178,7 @@ export default function EmbedScatterDisplay({ chartType }: Props) {
           instructions=""
           disableLegendExpand={true}
           compactLegend={true}
+          fillHeight
         />
       </Card>
     </figure>

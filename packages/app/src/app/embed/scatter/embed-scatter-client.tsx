@@ -66,8 +66,8 @@ export default function EmbedScatterClient({ params, canonicalHref }: Props) {
     <UnofficialRunProvider>
       <GlobalFilterProvider>
         <InferenceProvider activeTab="inference">
-          <div className="flex flex-col gap-2 p-2 sm:p-4 grow">
-            <div className="grow">
+          <div className="flex h-screen min-h-0 flex-col gap-2 p-2 sm:p-4">
+            <div className="min-h-0 flex-1">
               <EmbedScatterDisplay chartType={params.chart} />
             </div>
             <div className="flex justify-end pt-1">

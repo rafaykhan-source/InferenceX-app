@@ -103,6 +103,35 @@ describe('Embed — Scatter Chart', () => {
       cy.get('[data-testid="embed-scatter-figure"]').find('svg').should('exist');
       cy.get('[data-testid="embed-legend-panel"]').should('be.visible');
     });
+
+    it('fits short iframe height without document scroll (1024×420)', () => {
+      cy.viewport(1024, 420);
+      cy.visit('/embed/scatter');
+      cy.get('[data-testid="embed-scatter-figure"]', { timeout: 15000 }).should('exist');
+      cy.get('[data-testid="scatter-graph"] svg').should('exist');
+      cy.window().then((win) => {
+        expect(win.document.documentElement.scrollHeight).to.be.at.most(420);
+      });
+      cy.get('[data-testid="scatter-graph"] svg')
+        .invoke('attr', 'height')
+        .then((h) => {
+          const n = Number(h);
+          expect(n).to.be.at.least(240);
+          expect(n).to.be.below(600);
+        });
+    });
+
+    it('floors chart SVG height at 240px when iframe is very short (1024×250)', () => {
+      cy.viewport(1024, 250);
+      cy.visit('/embed/scatter');
+      cy.get('[data-testid="embed-scatter-figure"]', { timeout: 15000 }).should('exist');
+      cy.get('[data-testid="scatter-graph"] svg').invoke('attr', 'height').should('eq', '240');
+      cy.window().then((win) => {
+        expect(win.document.documentElement.scrollHeight).to.be.above(
+          win.document.documentElement.clientHeight,
+        );
+      });
+    });
   });
 
   describe('unofficial run overlay', () => {

@@ -358,6 +358,11 @@ export interface ScatterGraphProps {
   /** When true, removes the fixed h-96 on the legend container at narrow widths (e.g. embed mode). */
   compactLegend?: boolean;
   /**
+   * When true, chart SVG height follows the embed iframe (floored at 240px).
+   * Embed-only; dashboard leaves this unset/false.
+   */
+  fillHeight?: boolean;
+  /**
    * When true, hides chart-control switches and actions from the legend (e.g. embed mode).
    * Items, precision shape key, and data footnotes are still shown.
    */

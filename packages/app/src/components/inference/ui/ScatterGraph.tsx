@@ -116,6 +116,7 @@ const ScatterGraph = React.memo(
     instructions,
     disableLegendExpand = false,
     compactLegend = false,
+    fillHeight = false,
     hideLegendControls = false,
     transitionDuration = 750,
     niceAxes = true,
@@ -1904,6 +1905,7 @@ const ScatterGraph = React.memo(
         ref={chartRef}
         chartId={chartId}
         data={chartScaleData}
+        fillHeight={fillHeight}
         margin={CHART_MARGIN}
         watermark={getChartWatermark(isUnofficialRun)}
         testId="scatter-graph"
