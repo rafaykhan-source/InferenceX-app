@@ -2,12 +2,14 @@ import { describe, it, expect } from 'vitest';
 
 import {
   buildCanonicalHref,
+  buildEmbedScatterUrl,
   embedParamsToUrlState,
   EMBED_PARAM_DEFAULTS,
   readEmbedParams,
   resolveEmbedModel,
   resolveEmbedSequence,
   resolveEmbedYMetric,
+  Y_METRIC_SHORT_FROM_INTERNAL,
 } from '@/lib/embed-params';
 
 describe('readEmbedParams', () => {
@@ -109,6 +111,58 @@ describe('embedParamsToUrlState', () => {
 
   it('omits i_active when no gpus are specified', () => {
     expect(embedParamsToUrlState(EMBED_PARAM_DEFAULTS).i_active).toBeUndefined();
+  });
+});
+
+describe('Y_METRIC_SHORT_FROM_INTERNAL', () => {
+  it('maps internal y_* keys to embed short y values', () => {
+    expect(Y_METRIC_SHORT_FROM_INTERNAL['y_tpPerGpu']).toBe('tpPerGpu');
+    expect(Y_METRIC_SHORT_FROM_INTERNAL['y_costh']).toBe('costh');
+    expect(Y_METRIC_SHORT_FROM_INTERNAL['y_jTotal']).toBe('jTotal');
+  });
+});
+
+describe('buildEmbedScatterUrl', () => {
+  it('round-trips defaults through readEmbedParams and embedParamsToUrlState', () => {
+    const url = buildEmbedScatterUrl({
+      origin: 'https://inferencex.example.com',
+      model: 'DeepSeek-R1-0528',
+      sequence: '8k/1k',
+      precisions: 'fp4',
+      yMetric: 'y_tpPerGpu',
+      activeGpus: '',
+      chartType: 'e2e',
+    });
+    expect(url).toMatch(/^https:\/\/inferencex\.example\.com\/embed\/scatter\?/u);
+    const parsed = readEmbedParams(new URL(url).searchParams);
+    expect(parsed.chart).toBe('e2e');
+    expect(embedParamsToUrlState(parsed)).toEqual({
+      g_model: 'DeepSeek-R1-0528',
+      i_seq: '8k/1k',
+      i_prec: 'fp4',
+      i_metric: 'y_tpPerGpu',
+    });
+  });
+
+  it('round-trips interactivity, GPUs, and cost metric', () => {
+    const url = buildEmbedScatterUrl({
+      origin: 'https://example.com',
+      model: 'DeepSeek-V4-Pro',
+      sequence: '1k/1k',
+      precisions: 'fp4',
+      yMetric: 'y_costh',
+      activeGpus: 'b200_vllm',
+      chartType: 'interactivity',
+    });
+    const parsed = readEmbedParams(new URL(url).searchParams);
+    expect(parsed.chart).toBe('interactivity');
+    expect(embedParamsToUrlState(parsed)).toEqual({
+      g_model: 'DeepSeek-V4-Pro',
+      i_seq: '1k/1k',
+      i_prec: 'fp4',
+      i_metric: 'y_costh',
+      i_active: 'b200_vllm',
+    });
   });
 });
 

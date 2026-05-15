@@ -87,6 +87,54 @@ describe('ChartButtons', () => {
     });
   });
 
+  describe('embed scatter link', () => {
+    it('shows Copy embed link when getEmbedUrl is provided and copies to clipboard', () => {
+      const embedUrl = 'https://example.com/embed/scatter?model=dsr1';
+      cy.window().then((win) => {
+        cy.stub(win.navigator.clipboard, 'writeText').as('clipboardWrite');
+      });
+      cy.mount(
+        <div style={{ position: 'relative', width: 400, height: 200 }}>
+          <div id="test-chart">Chart content</div>
+          <ChartButtons
+            chartId="test-chart"
+            analyticsPrefix="test"
+            onExportCsv={cy.stub()}
+            getEmbedUrl={() => embedUrl}
+          />
+        </div>,
+      );
+      cy.get('[data-testid="export-button"]').click();
+      cy.get('[data-testid="export-embed-button"]').should('be.visible').click();
+      cy.get('@clipboardWrite').should('have.been.calledOnceWith', embedUrl);
+      cy.get('[data-testid="export-embed-button"]').should('contain.text', 'Copied!');
+    });
+
+    it('shows the popover when only getEmbedUrl is provided', () => {
+      cy.window().then((win) => {
+        cy.stub(win.navigator.clipboard, 'writeText').as('clipboardWrite');
+      });
+      cy.mount(
+        <div style={{ position: 'relative', width: 400, height: 200 }}>
+          <div id="test-chart">Chart content</div>
+          <ChartButtons
+            chartId="test-chart"
+            analyticsPrefix="test"
+            getEmbedUrl={() => 'https://example.com/embed/scatter?model=dsr1'}
+          />
+        </div>,
+      );
+      cy.get('[data-testid="export-button"]').click();
+      cy.get('[data-testid="export-png-button"]').should('be.visible');
+      cy.get('[data-testid="export-csv-button"]').should('not.exist');
+      cy.get('[data-testid="export-embed-button"]').should('be.visible').click();
+      cy.get('@clipboardWrite').should(
+        'have.been.calledOnceWith',
+        'https://example.com/embed/scatter?model=dsr1',
+      );
+    });
+  });
+
   describe('hideZoomReset', () => {
     it('hides zoom reset button when hideZoomReset is true', () => {
       cy.mount(

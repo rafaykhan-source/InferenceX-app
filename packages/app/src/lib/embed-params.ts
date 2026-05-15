@@ -14,7 +14,12 @@
  * `seedUrlState`) so the chart mounts already pointed at the requested state.
  */
 
-import { DB_MODEL_TO_DISPLAY, islOslToSequence } from '@semianalysisai/inferencex-constants';
+import {
+  DB_MODEL_TO_DISPLAY,
+  DISPLAY_MODEL_TO_DB,
+  islOslToSequence,
+  sequenceToIslOsl,
+} from '@semianalysisai/inferencex-constants';
 import type { UrlStateParams } from '@/lib/url-state';
 
 /**
@@ -60,6 +65,11 @@ const Y_METRIC_ALIASES: Record<string, string> = {
   jOutput: 'y_jOutput',
   jInput: 'y_jInput',
 };
+
+/** Internal `y_*` metric key → short `y` query value for `/embed/scatter`. */
+export const Y_METRIC_SHORT_FROM_INTERNAL: Record<string, string> = Object.fromEntries(
+  Object.entries(Y_METRIC_ALIASES).map(([short, internal]) => [internal, short]),
+);
 
 /**
  * Translate an embed `y` param (short or full form) to the internal `y_*` key.
@@ -158,4 +168,53 @@ export function buildCanonicalHref(params: EmbedParams, origin: string): string 
   sp.set('i_metric', resolveEmbedYMetric(params.y));
   if (params.gpus) sp.set('i_active', params.gpus);
   return `${origin}/inference?${sp.toString()}`;
+}
+
+function embedYQueryFromDashboardMetric(yMetric: string): string {
+  if (yMetric.startsWith('y_')) {
+    return Y_METRIC_SHORT_FROM_INTERNAL[yMetric] ?? EMBED_PARAM_DEFAULTS.y;
+  }
+  if (yMetric in Y_METRIC_ALIASES) return yMetric;
+  return EMBED_PARAM_DEFAULTS.y;
+}
+
+/**
+ * Build a stable `/embed/scatter?...` URL from dashboard-style chart state.
+ *
+ * Note: The embed route does not carry `?unofficialrun=` / overlay data — the URL
+ * reflects official benchmark filters only (model, sequence, precisions, metric,
+ * visible GPUs, chart type).
+ */
+export function buildEmbedScatterUrl(args: {
+  origin: string;
+  /** Display model name (same as `g_model` / UI selection). */
+  model: string;
+  sequence: string;
+  precisions: string;
+  yMetric: string;
+  activeGpus: string;
+  chartType: 'e2e' | 'interactivity';
+}): string {
+  const baseOrigin = args.origin.replace(/\/$/u, '');
+  const dbKey = DISPLAY_MODEL_TO_DB[args.model]?.[0] ?? EMBED_PARAM_DEFAULTS.model;
+
+  const islOsl = sequenceToIslOsl(args.sequence);
+  const isl = islOsl ? String(islOsl.isl) : EMBED_PARAM_DEFAULTS.isl;
+  const osl = islOsl ? String(islOsl.osl) : EMBED_PARAM_DEFAULTS.osl;
+
+  const precisions =
+    args.precisions.trim() === '' ? EMBED_PARAM_DEFAULTS.precisions : args.precisions;
+
+  const y = embedYQueryFromDashboardMetric(args.yMetric);
+
+  const sp = new URLSearchParams();
+  sp.set('model', dbKey);
+  sp.set('isl', isl);
+  sp.set('osl', osl);
+  sp.set('precisions', precisions);
+  if (args.activeGpus.trim()) sp.set('gpus', args.activeGpus.trim());
+  sp.set('y', y);
+  if (args.chartType === 'interactivity') sp.set('chart', 'interactivity');
+
+  return `${baseOrigin}/embed/scatter?${sp.toString()}`;
 }
