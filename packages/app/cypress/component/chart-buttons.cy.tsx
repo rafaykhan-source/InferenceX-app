@@ -88,7 +88,7 @@ describe('ChartButtons', () => {
   });
 
   describe('embed scatter link', () => {
-    it('shows Copy embed link when getEmbedUrl is provided and copies to clipboard', () => {
+    it('shows Copy embed when getEmbedUrl is provided and copies an iframe snippet to clipboard', () => {
       const embedUrl = 'https://example.com/embed/scatter?model=dsr1';
       cy.window().then((win) => {
         cy.stub(win.navigator.clipboard, 'writeText').as('clipboardWrite');
@@ -106,7 +106,14 @@ describe('ChartButtons', () => {
       );
       cy.get('[data-testid="export-button"]').click();
       cy.get('[data-testid="export-embed-button"]').should('be.visible').click();
-      cy.get('@clipboardWrite').should('have.been.calledOnceWith', embedUrl);
+      cy.get('@clipboardWrite').should('have.been.calledOnce');
+      cy.get('@clipboardWrite')
+        .invoke('getCall', 0)
+        .its('args')
+        .its(0)
+        .should('include', embedUrl)
+        .and('include', '<iframe')
+        .and('include', 'referrerpolicy="origin"');
       cy.get('[data-testid="export-embed-button"]').should('contain.text', 'Copied!');
     });
 
@@ -127,11 +134,15 @@ describe('ChartButtons', () => {
       cy.get('[data-testid="export-button"]').click();
       cy.get('[data-testid="export-png-button"]').should('be.visible');
       cy.get('[data-testid="export-csv-button"]').should('not.exist');
-      cy.get('[data-testid="export-embed-button"]').should('be.visible').click();
-      cy.get('@clipboardWrite').should(
-        'have.been.calledOnceWith',
-        'https://example.com/embed/scatter?model=dsr1',
-      );
+      cy.get('[data-testid="export-embed-button"]').should('be.visible');
+      cy.get('[data-testid="export-embed-button"]').click();
+      cy.get('@clipboardWrite').should('have.been.calledOnce');
+      cy.get('@clipboardWrite')
+        .invoke('getCall', 0)
+        .its('args')
+        .its(0)
+        .should('include', '<iframe')
+        .and('include', 'https://example.com/embed/scatter?model=dsr1');
     });
   });
 

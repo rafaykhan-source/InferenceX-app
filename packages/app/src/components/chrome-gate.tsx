@@ -4,8 +4,12 @@ import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
 
 /**
- * Hides chrome (Header, Footer) on `/embed/*` routes so the chart is rendered
- * standalone for iframe embedding. All other routes render children unchanged.
+ * Hides children on `/embed/*` routes so charts render clean for iframe
+ * embedding. All other routes render children unchanged.
+ *
+ * Wrap any element that must not appear inside partner iframes with this
+ * component. PostHog is intentionally excluded — `embed_view` events still
+ * need to fire inside the embed.
  */
 export function ChromeGate({ children }: { children: ReactNode }) {
   const pathname = usePathname();

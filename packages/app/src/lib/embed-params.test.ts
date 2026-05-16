@@ -2,9 +2,11 @@ import { describe, it, expect } from 'vitest';
 
 import {
   buildCanonicalHref,
+  buildEmbedIframeSnippet,
   buildEmbedScatterUrl,
   embedParamsToUrlState,
   EMBED_PARAM_DEFAULTS,
+  EMBED_PARAM_KEYS,
   readEmbedParams,
   resolveEmbedModel,
   resolveEmbedSequence,
@@ -163,6 +165,38 @@ describe('buildEmbedScatterUrl', () => {
       i_metric: 'y_costh',
       i_active: 'b200_vllm',
     });
+  });
+});
+
+describe('buildEmbedIframeSnippet', () => {
+  it('wraps the embed URL in a recommended iframe tag', () => {
+    const url = 'https://example.com/embed/scatter?model=dsr1';
+    const snippet = buildEmbedIframeSnippet(url);
+    expect(snippet).toContain(`src="${url}"`);
+    expect(snippet).toContain('width="800"');
+    expect(snippet).toContain('height="500"');
+    expect(snippet).toContain('loading="lazy"');
+    expect(snippet).toContain('referrerpolicy="origin"');
+    expect(snippet).toContain('allow="clipboard-write"');
+  });
+
+  it('accepts custom width and height', () => {
+    const snippet = buildEmbedIframeSnippet('https://x.test/e', { width: '100%', height: 400 });
+    expect(snippet).toContain('width="100%"');
+    expect(snippet).toContain('height="400"');
+  });
+});
+
+describe('EMBED_PARAM_KEYS', () => {
+  it('contains every key in EMBED_PARAM_DEFAULTS (contract can only grow)', () => {
+    const defaultKeys = Object.keys(EMBED_PARAM_DEFAULTS);
+    for (const key of defaultKeys) {
+      expect(EMBED_PARAM_KEYS).toContain(key);
+    }
+  });
+
+  it('is frozen (cannot be mutated at runtime)', () => {
+    expect(Object.isFrozen(EMBED_PARAM_KEYS)).toBe(true);
   });
 });
 

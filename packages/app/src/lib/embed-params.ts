@@ -40,12 +40,24 @@ export const EMBED_PARAM_DEFAULTS = {
 export type EmbedParams = typeof EMBED_PARAM_DEFAULTS;
 
 /**
+ * Public-contract parameter keys for the embed URL surface. Exported so tests
+ * can assert that this set only ever grows — keys must never be removed. See
+ * docs/embed.md for the full stability guarantee.
+ */
+export const EMBED_PARAM_KEYS = Object.freeze(
+  Object.keys(EMBED_PARAM_DEFAULTS) as (keyof EmbedParams)[],
+);
+
+/**
  * Y-axis metric short forms accepted in the embed URL contract. Maps to the
  * internal `y_*` keys used by the chart config. Both the short form (`tpPerGpu`)
  * and the full form (`y_tpPerGpu`) are accepted on input — full form is mainly
  * for forward-compat if we add metrics whose short alias hasn't been picked.
+ *
+ * STABILITY: entries in this map are part of the public embed URL contract and
+ * CANNOT be removed or renamed. Only additions are allowed. See docs/embed.md.
  */
-const Y_METRIC_ALIASES: Record<string, string> = {
+const Y_METRIC_ALIASES: Readonly<Record<string, string>> = Object.freeze({
   tpPerGpu: 'y_tpPerGpu',
   inputTputPerGpu: 'y_inputTputPerGpu',
   outputTputPerGpu: 'y_outputTputPerGpu',
@@ -64,7 +76,7 @@ const Y_METRIC_ALIASES: Record<string, string> = {
   jTotal: 'y_jTotal',
   jOutput: 'y_jOutput',
   jInput: 'y_jInput',
-};
+});
 
 /** Internal `y_*` metric key → short `y` query value for `/embed/scatter`. */
 export const Y_METRIC_SHORT_FROM_INTERNAL: Record<string, string> = Object.fromEntries(
@@ -217,4 +229,29 @@ export function buildEmbedScatterUrl(args: {
   if (args.chartType === 'interactivity') sp.set('chart', 'interactivity');
 
   return `${baseOrigin}/embed/scatter?${sp.toString()}`;
+}
+
+const DEFAULT_IFRAME_WIDTH = 800;
+const DEFAULT_IFRAME_HEIGHT = 500;
+
+/**
+ * Builds a partner-ready `<iframe>` snippet for an embed URL. Matches the
+ * recommended attributes in `docs/embed.md` (`referrerpolicy="origin"`, etc.).
+ */
+export function buildEmbedIframeSnippet(
+  src: string,
+  options?: { width?: number | string; height?: number },
+): string {
+  const width = options?.width ?? DEFAULT_IFRAME_WIDTH;
+  const height = options?.height ?? DEFAULT_IFRAME_HEIGHT;
+  const widthAttr = typeof width === 'number' ? String(width) : width;
+  return `<iframe
+  src="${src}"
+  width="${widthAttr}"
+  height="${height}"
+  loading="lazy"
+  referrerpolicy="origin"
+  allow="clipboard-write"
+  style="border:none;border-radius:8px">
+</iframe>`;
 }

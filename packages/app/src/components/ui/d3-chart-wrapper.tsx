@@ -120,7 +120,10 @@ export function D3ChartWrapper({
             <div ref={setContainerRef} className="relative min-h-0 min-w-0 flex-1">
               <div className="relative h-full min-h-0 w-full">{svgBlock}</div>
             </div>
-            <p className="no-export mt-2 text-center text-xs text-muted-foreground">
+            <p
+              data-testid={`${chartId}-instructions`}
+              className="no-export mt-2 text-center text-xs text-muted-foreground"
+            >
               {instructions}
             </p>
             <div className="max-h-0 overflow-hidden">
@@ -143,7 +146,12 @@ export function D3ChartWrapper({
       <div className="flex w-full flex-col lg:flex-row">
         <div ref={setContainerRef} className="relative min-w-0 flex-1">
           <div className="relative">{svgBlock}</div>
-          <p className="no-export mt-2 text-center text-xs text-muted-foreground">{instructions}</p>
+          <p
+            data-testid={`${chartId}-instructions`}
+            className="no-export mt-2 text-center text-xs text-muted-foreground"
+          >
+            {instructions}
+          </p>
           <div className="max-h-0 overflow-hidden">
             <div id={`${chartId}-export`} className="p-4"></div>
           </div>

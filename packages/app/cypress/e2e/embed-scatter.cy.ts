@@ -1,3 +1,10 @@
+function joinHeader(headers: Record<string, string | string[] | undefined>, name: string): string {
+  const pair = Object.entries(headers).find(([k]) => k.toLowerCase() === name.toLowerCase());
+  const v = pair?.[1];
+  if (Array.isArray(v)) return v.join(', ');
+  return typeof v === 'string' ? v : '';
+}
+
 describe('Embed — Scatter Chart', () => {
   describe('default URL', () => {
     before(() => {
@@ -34,11 +41,12 @@ describe('Embed — Scatter Chart', () => {
     });
 
     it('does not show the Shift+Scroll instructions text', () => {
-      cy.get('.no-export').should('have.text', '');
+      cy.get('[data-testid="embed-chart-instructions"]').should('have.text', '');
     });
 
     it('has robots noindex meta tag', () => {
-      cy.get('meta[name="robots"]').should('have.attr', 'content').and('include', 'noindex');
+      // Root layout may emit its own `meta[name="robots"]` first; embed routes add a noindex tag too.
+      cy.get('meta[name="robots"][content*="noindex"]').should('exist');
     });
   });
 
@@ -74,14 +82,14 @@ describe('Embed — Scatter Chart', () => {
   describe('CSP headers', () => {
     it('embed routes allow framing from any origin', () => {
       cy.request('/embed/scatter').then((resp) => {
-        const csp = resp.headers['content-security-policy'] as string;
+        const csp = joinHeader(resp.headers, 'content-security-policy');
         expect(csp).to.include('frame-ancestors *');
       });
     });
 
     it('non-embed routes restrict framing to self', () => {
       cy.request('/').then((resp) => {
-        const csp = resp.headers['content-security-policy'] as string;
+        const csp = joinHeader(resp.headers, 'content-security-policy');
         expect(csp).to.include("frame-ancestors 'self'");
       });
     });

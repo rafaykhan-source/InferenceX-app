@@ -1,12 +1,13 @@
 'use client';
 
 import { track } from '@/lib/analytics';
-import { Check, Code, Download, FileSpreadsheet, Image, RotateCcw, Video } from 'lucide-react';
+import { Check, CodeXml, Download, FileSpreadsheet, Image, RotateCcw, Video } from 'lucide-react';
 import { type ReactNode, useCallback, useState } from 'react';
 
 import { useChartExport } from '@/hooks/useChartExport';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { buildEmbedIframeSnippet } from '@/lib/embed-params';
 import { cn } from '@/lib/utils';
 
 interface ChartButtonsProps {
@@ -26,7 +27,7 @@ interface ChartButtonsProps {
   onExportCsv?: () => void;
   /** Optional callback to open the MP4 export preview (e.g., replay modal) */
   onExportMp4?: () => void;
-  /** When set, export menu includes "Copy embed link" (e.g. `/embed/scatter?...`). */
+  /** When set, export menu includes "Copy embed" (iframe HTML built from `/embed/scatter?...`). */
   getEmbedUrl?: () => string;
   /** Human-readable base name for exported files (e.g. "DeepSeek-R1_throughput_interactivity"). Falls back to chartId. */
   exportFileName?: string;
@@ -41,7 +42,7 @@ interface ChartButtonsProps {
 
 /**
  * Reusable chart action buttons component that provides:
- * - Export to image with analytics tracking, or a popover with PNG plus optional CSV / MP4 / embed link
+ * - Export to image with analytics tracking, or a popover with PNG plus optional CSV / MP4 / copy embed (iframe)
  * - Reset zoom button with custom event dispatch
  *
  * Event pattern: `${analyticsPrefix}_zoom_reset_${chartId}`
@@ -74,13 +75,14 @@ export function ChartButtons({
   const handleCopyEmbed = useCallback(async () => {
     const url = getEmbedUrl?.();
     if (!url) return;
-    track(`${analyticsPrefix}_embed_link_copied`);
+    track(`${analyticsPrefix}_embed_iframe_copied`);
+    const snippet = buildEmbedIframeSnippet(url);
 
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(snippet);
     } catch {
       const textArea = document.createElement('textarea');
-      textArea.value = url;
+      textArea.value = snippet;
       document.body.append(textArea);
       textArea.select();
       document.execCommand('copy');
@@ -189,8 +191,8 @@ export function ChartButtons({
                   void handleCopyEmbed();
                 }}
               >
-                {copiedEmbed ? <Check size={14} /> : <Code size={14} />}
-                {copiedEmbed ? 'Copied!' : 'Copy embed link'}
+                {copiedEmbed ? <Check size={14} /> : <CodeXml size={14} />}
+                {copiedEmbed ? 'Copied!' : 'Copy embed'}
               </button>
             )}
           </PopoverContent>
