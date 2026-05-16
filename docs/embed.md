@@ -88,7 +88,7 @@ To discover the current set of valid hwKeys, visit `/inference` on the live site
 ## Embed mode behavior
 
 - Site header, footer, background decorations, and navigation are hidden on all `/embed/*` routes.
-- A small "SemiAnalysis InferenceX →" attribution link is shown at the bottom of each embed, deep-linking to the equivalent canonical dashboard URL.
+- A "SemiAnalysis InferenceX →" link appears in the chart caption (`Source: …`), deep-linking to the equivalent canonical dashboard URL.
 - `robots: noindex, nofollow` is set on all embed routes — they won't appear in search results.
 - An `embed_view` PostHog event is fired once on mount, capturing `referrer`, `embed_host`, `embed_chart`, `model`, `sequence`, `gpus`, `y_metric`, and `precisions`. This makes external embed traffic attributable in analytics.
 
@@ -118,3 +118,5 @@ All other routes set `frame-ancestors 'self'` and `X-Frame-Options: SAMEORIGIN`,
 `allow="clipboard-write"` is optional but needed if you want clipboard actions inside the embedded chart to work from the parent page.
 
 You can copy the same ready-made iframe snippet from the dashboard: open the chart's **Export** menu and choose **Copy embed**.
+
+For very short iframes (around 300–400 px tall), prefer `width` ≥ 1024 if you want the legend as a side column; below that width the legend uses a collapsible row at the bottom.

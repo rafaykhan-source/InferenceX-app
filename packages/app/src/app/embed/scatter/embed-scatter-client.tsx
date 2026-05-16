@@ -3,7 +3,6 @@
 import { useEffect, useRef } from 'react';
 
 import EmbedScatterDisplay from '@/components/embed/embed-scatter-display';
-import { EmbedAttribution } from '@/components/embed/embed-attribution';
 import { GlobalFilterProvider } from '@/components/GlobalFilterContext';
 import { InferenceProvider } from '@/components/inference/InferenceContext';
 import { UnofficialRunProvider } from '@/components/unofficial-run-provider';
@@ -66,12 +65,9 @@ export default function EmbedScatterClient({ params, canonicalHref }: Props) {
     <UnofficialRunProvider>
       <GlobalFilterProvider>
         <InferenceProvider activeTab="inference">
-          <div className="flex h-screen min-h-0 flex-col gap-2 p-2 sm:p-4">
+          <div className="flex h-screen min-h-0 flex-col p-1 sm:p-2">
             <div className="min-h-0 flex-1">
-              <EmbedScatterDisplay chartType={params.chart} />
-            </div>
-            <div className="flex justify-end pt-1">
-              <EmbedAttribution canonicalHref={canonicalHref} />
+              <EmbedScatterDisplay chartType={params.chart} canonicalHref={canonicalHref} />
             </div>
           </div>
         </InferenceProvider>

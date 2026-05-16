@@ -104,6 +104,21 @@ describe('Embed — Scatter Chart', () => {
       cy.get('[data-testid="embed-legend-panel"]').should('be.visible');
     });
 
+    it('legend dropdown stays inside the card at short height (800×400)', () => {
+      cy.viewport(800, 400);
+      cy.visit('/embed/scatter');
+      cy.get('[data-testid="embed-scatter-figure"]', { timeout: 15000 }).should('exist');
+      cy.get('[data-testid="embed-legend-panel"] summary').click();
+      cy.get('[data-testid="embed-legend-dropdown"]').should('be.visible');
+      cy.get('[data-testid="embed-scatter-figure"] [data-slot="card"]').then(($card) => {
+        cy.get('[data-testid="embed-legend-dropdown"]').then(($dd) => {
+          const cardTop = $card[0].getBoundingClientRect().top;
+          const ddTop = $dd[0].getBoundingClientRect().top;
+          expect(ddTop).to.be.at.least(cardTop);
+        });
+      });
+    });
+
     it('renders chart at 800×600', () => {
       cy.viewport(800, 600);
       cy.visit('/embed/scatter');

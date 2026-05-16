@@ -2,14 +2,15 @@
 
 import { useCallback, useMemo } from 'react';
 
+import { EmbedLegendWrapper } from '@/components/embed/embed-legend-wrapper';
 import { useInference } from '@/components/inference/InferenceContext';
 import type { InferenceData, OverlayData } from '@/components/inference/types';
-import { processOverlayChartData } from '@/components/inference/utils';
 import ScatterGraph from '@/components/inference/ui/ScatterGraph';
-import { EmbedLegendWrapper } from '@/components/embed/embed-legend-wrapper';
+import { processOverlayChartData } from '@/components/inference/utils';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useUnofficialRun } from '@/components/unofficial-run-provider';
+import { track } from '@/lib/analytics';
 import {
   type Model,
   type Precision,
@@ -22,6 +23,8 @@ import {
 interface Props {
   /** Which chart to render — `e2e` or `interactivity`. Defaults to `e2e`. */
   chartType: 'e2e' | 'interactivity';
+  /** Canonical dashboard URL for the attribution link in the caption. */
+  canonicalHref: string;
 }
 
 /**
@@ -31,7 +34,7 @@ interface Props {
  * Reads from the same `InferenceContext` as the dashboard so chart behavior
  * (legend, zoom, overlay rendering) stays consistent.
  */
-export default function EmbedScatterDisplay({ chartType }: Props) {
+export default function EmbedScatterDisplay({ chartType, canonicalHref }: Props) {
   const {
     graphs,
     loading,
@@ -120,7 +123,7 @@ export default function EmbedScatterDisplay({ chartType }: Props) {
 
   if (isFirstLoad || !targetGraph) {
     return (
-      <Card data-testid="embed-scatter-skeleton">
+      <Card data-testid="embed-scatter-skeleton" className="border-0 p-2 md:p-3">
         <Skeleton className="h-7 w-2/4 mb-1" />
         <Skeleton className="h-5 w-3/4 mb-2" />
         <Skeleton className="h-[420px] w-full" />
@@ -149,7 +152,18 @@ export default function EmbedScatterDisplay({ chartType }: Props) {
       <p className="text-sm text-muted-foreground mb-2">
         {getModelLabel(targetGraph.model as Model)} •{' '}
         {selectedPrecisions.map((prec) => getPrecisionLabel(prec as Precision)).join(', ')} •{' '}
-        {getSequenceLabel(targetGraph.sequence as Sequence)} • Source: SemiAnalysis InferenceX™
+        {getSequenceLabel(targetGraph.sequence as Sequence)} • Source:{' '}
+        <a
+          data-testid="embed-attribution"
+          href={canonicalHref}
+          target="_blank"
+          rel="noopener"
+          onClick={() => track('embed_attribution_clicked', { href: canonicalHref })}
+          className="inline-flex items-center gap-1 text-foreground underline-offset-2 hover:underline"
+        >
+          SemiAnalysis InferenceX
+          <span aria-hidden>→</span>
+        </a>
       </p>
     </>
   );
@@ -164,7 +178,7 @@ export default function EmbedScatterDisplay({ chartType }: Props) {
       data-testid="embed-scatter-figure"
       className="relative flex h-full min-h-0 flex-col rounded-lg"
     >
-      <Card className="flex h-full min-h-0 flex-col">
+      <Card className="flex h-full min-h-0 flex-col border-0 p-2 md:p-3">
         <ScatterGraph
           chartId="embed-chart"
           modelLabel={targetGraph.model}
