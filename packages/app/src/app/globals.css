@@ -424,12 +424,6 @@
     outline: none;
   }
 }
-
-/* Chart legends: Arial-like stack for readability (body remains DM Sans). */
-.legend-container {
-  font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif;
-}
-
 /* Custom scrollbar styling */
 .custom-scrollbar::-webkit-scrollbar {
   width: 8px;
