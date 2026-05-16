@@ -163,20 +163,20 @@ export default function ChartLegend({
 
   const outerClasses = isSidebar
     ? cn(
-        'p-2 rounded-sm text-sm flex flex-col h-full legend-container sidebar-legend transition-all',
+        'p-2 rounded-sm text-sm font-sans flex flex-col h-full legend-container sidebar-legend transition-all',
         isLegendExpanded
           ? 'absolute right-0 top-0 z-10 w-auto min-w-fit border bg-accent'
           : 'w-full',
       )
     : grouped
       ? cn(
-          'py-1 px-2 md:py-1 rounded-sm border text-sm top-0 right-0 bg-accent transition-all md:flex md:flex-col legend-container',
+          'py-1 px-2 md:py-1 rounded-sm border text-sm font-sans top-0 right-0 bg-accent transition-all md:flex md:flex-col legend-container',
           isLegendExpanded
             ? 'md:max-w-none md:w-auto md:min-w-fit'
             : 'md:max-w-40 bg-transparent border-transparent px-1',
         )
       : cn(
-          'mt-4 md:pt-8 md:p-2 rounded-sm border md:absolute text-sm top-0 right-0 bg-accent transition-all md:flex md:flex-col legend-container',
+          'mt-4 md:pt-8 md:p-2 rounded-sm border md:absolute text-sm font-sans top-0 right-0 bg-accent transition-all md:flex md:flex-col legend-container',
           isLegendExpanded
             ? 'md:max-w-none md:w-auto md:min-w-fit'
             : 'md:max-w-40 bg-transparent border-transparent',
