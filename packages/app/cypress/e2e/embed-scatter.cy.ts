@@ -50,9 +50,9 @@ describe('Embed — Scatter Chart', () => {
     });
   });
 
-  describe('custom params', () => {
+  describe('custom params (site-style keys)', () => {
     before(() => {
-      cy.visit('/embed/scatter?model=dsr1&isl=8192&osl=1024&precisions=fp4&y=costh');
+      cy.visit('/embed/scatter?g_model=DeepSeek-R1-0528&i_seq=8k%2F1k&i_prec=fp4&i_metric=y_costh');
     });
 
     it('renders chart with the custom y metric', () => {
@@ -65,16 +65,47 @@ describe('Embed — Scatter Chart', () => {
         .should('have.attr', 'href')
         .and('include', 'i_metric=y_costh');
     });
+
+    it('canonical link does not include i_chart', () => {
+      cy.get('[data-testid="embed-attribution"]')
+        .should('have.attr', 'href')
+        .and('not.include', 'i_chart');
+    });
   });
 
-  describe('gpus param filters the legend', () => {
+  describe('i_active param restricts legend to creator-selected GPUs', () => {
     before(() => {
-      cy.visit('/embed/scatter?gpus=b200_sglang');
+      cy.visit('/embed/scatter?i_active=b200_sglang');
     });
 
-    it('renders chart and legend reflects the active GPU set', () => {
+    it('renders chart without "No data available"', () => {
       cy.get('[data-testid="embed-scatter-figure"]', { timeout: 15000 }).should('exist');
       cy.get('[data-testid="embed-scatter-figure"]').find('svg').should('exist');
+      cy.contains('No data available').should('not.exist');
+    });
+
+    it('legend contains only the allowed GPU', () => {
+      // Each GPU renders as a <li> inside [data-testid="chart-legend"].
+      // With i_active=b200_sglang, only that GPU is in the allow-list, so
+      // exactly 1 <li> should appear (fp-indicators and controls use <div>).
+      cy.get('[data-testid="embed-scatter-figure"]', { timeout: 15000 }).should('exist');
+      cy.contains('No data available').should('not.exist');
+      cy.get('[data-testid="embed-legend-panel"] [data-testid="chart-legend"] li').should(
+        'have.length',
+        1,
+      );
+    });
+  });
+
+  describe('i_chart param selects chart variant', () => {
+    it('renders e2e chart by default', () => {
+      cy.visit('/embed/scatter');
+      cy.get('[data-testid="embed-scatter-figure"]', { timeout: 15000 }).should('exist');
+    });
+
+    it('renders interactivity chart when i_chart=interactivity', () => {
+      cy.visit('/embed/scatter?i_chart=interactivity');
+      cy.get('[data-testid="embed-scatter-figure"]', { timeout: 15000 }).should('exist');
       cy.contains('No data available').should('not.exist');
     });
   });

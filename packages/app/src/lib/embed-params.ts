@@ -1,201 +1,43 @@
 /**
  * @file embed-params.ts
- * @description Stable, public-contract URL parameter shape for `/embed/*` routes.
+ * @description Utilities for building and reading `/embed/*` route URLs.
  *
- * The internal app uses `g_*` / `i_*` / `e_*` keys (see `url-state.ts`) which we
- * reserve the right to refactor. The embed surface uses a different, smaller set
- * of keys we commit to keeping working long-term so partner sites can iframe a
- * stable URL contract:
+ * Embed URLs use the same `g_*` / `i_*` parameter keys as the main site
+ * (see `url-state.ts`) so there is no translation layer to maintain. The one
+ * embed-specific key is `i_chart` (which chart variant to show — the main site
+ * renders both E2E and interactivity together, embeds show only one).
  *
- *   /embed/scatter?model=dsr1&isl=8192&osl=1024&precisions=fp4&gpus=b300_sglang,gb300_dynamo-sglang&y=tpPerGpu&chart=e2e
- *
- * Translation is one-way: embed-shaped params → internal `UrlStateParams`. The
- * translator runs synchronously before provider initializers fire (via
- * `seedUrlState`) so the chart mounts already pointed at the requested state.
+ * Example URL:
+ *   /embed/scatter?g_model=DeepSeek-R1-0528&i_seq=8k%2F1k&i_prec=fp4
+ *     &i_metric=y_tpPerGpu&i_active=b200_sglang,gb300_dynamo-sglang&i_chart=e2e
  */
 
-import {
-  DB_MODEL_TO_DISPLAY,
-  DISPLAY_MODEL_TO_DB,
-  islOslToSequence,
-  sequenceToIslOsl,
-} from '@semianalysisai/inferencex-constants';
-import type { UrlStateParams } from '@/lib/url-state';
+import { PARAM_DEFAULTS, type UrlStateParams } from '@/lib/url-state';
 
 /**
- * Default values for embed params. Defaults match the inference page's defaults
- * so a bare `/embed/scatter` URL renders the same default chart users see at
- * `/inference`.
+ * The four core embed-relevant params that must always appear in the canonical
+ * `/inference` link, even when not present in the embed URL itself (because
+ * the providers will apply these defaults on the client side anyway).
  */
-export const EMBED_PARAM_DEFAULTS = {
-  model: 'dsr1',
-  isl: '8192',
-  osl: '1024',
-  precisions: 'fp4',
-  gpus: '',
-  y: 'tpPerGpu',
-  chart: 'e2e' as 'e2e' | 'interactivity',
-};
-
-export type EmbedParams = typeof EMBED_PARAM_DEFAULTS;
+const EMBED_CANONICAL_KEYS = ['g_model', 'i_seq', 'i_prec', 'i_metric'] as const;
 
 /**
- * Public-contract parameter keys for the embed URL surface. Exported so tests
- * can assert that this set only ever grows — keys must never be removed. See
- * docs/embed.md for the full stability guarantee.
+ * Read the `i_chart` embed-only param from any string value.
+ * Returns `'interactivity'` only for exact match; everything else (including
+ * absent/null) defaults to `'e2e'`.
  */
-export const EMBED_PARAM_KEYS = Object.freeze(
-  Object.keys(EMBED_PARAM_DEFAULTS) as (keyof EmbedParams)[],
-);
-
-/**
- * Y-axis metric short forms accepted in the embed URL contract. Maps to the
- * internal `y_*` keys used by the chart config. Both the short form (`tpPerGpu`)
- * and the full form (`y_tpPerGpu`) are accepted on input — full form is mainly
- * for forward-compat if we add metrics whose short alias hasn't been picked.
- *
- * STABILITY: entries in this map are part of the public embed URL contract and
- * CANNOT be removed or renamed. Only additions are allowed. See docs/embed.md.
- */
-const Y_METRIC_ALIASES: Readonly<Record<string, string>> = Object.freeze({
-  tpPerGpu: 'y_tpPerGpu',
-  inputTputPerGpu: 'y_inputTputPerGpu',
-  outputTputPerGpu: 'y_outputTputPerGpu',
-  tpPerMw: 'y_tpPerMw',
-  inputTputPerMw: 'y_inputTputPerMw',
-  outputTputPerMw: 'y_outputTputPerMw',
-  costh: 'y_costh',
-  costn: 'y_costn',
-  costr: 'y_costr',
-  costhOutput: 'y_costhOutput',
-  costnOutput: 'y_costnOutput',
-  costrOutput: 'y_costrOutput',
-  costhi: 'y_costhi',
-  costni: 'y_costni',
-  costri: 'y_costri',
-  jTotal: 'y_jTotal',
-  jOutput: 'y_jOutput',
-  jInput: 'y_jInput',
-});
-
-/** Internal `y_*` metric key → short `y` query value for `/embed/scatter`. */
-export const Y_METRIC_SHORT_FROM_INTERNAL: Record<string, string> = Object.fromEntries(
-  Object.entries(Y_METRIC_ALIASES).map(([short, internal]) => [internal, short]),
-);
-
-/**
- * Translate an embed `y` param (short or full form) to the internal `y_*` key.
- * Unknown values fall back to the default.
- */
-export function resolveEmbedYMetric(value: string | null | undefined): string {
-  if (!value) return Y_METRIC_ALIASES[EMBED_PARAM_DEFAULTS.y]!;
-  if (value.startsWith('y_')) return value;
-  return Y_METRIC_ALIASES[value] ?? Y_METRIC_ALIASES[EMBED_PARAM_DEFAULTS.y]!;
-}
-
-/**
- * Read embed params from a URLSearchParams-compatible source, applying defaults
- * for missing values. Always returns a fully populated object so callers don't
- * have to handle nullables.
- */
-export function readEmbedParams(
-  source: URLSearchParams | Record<string, string | undefined> | null | undefined,
-): EmbedParams {
-  const get = (k: string): string | undefined => {
-    if (!source) return undefined;
-    if (source instanceof URLSearchParams) return source.get(k) ?? undefined;
-    return source[k];
-  };
-
-  const chartRaw = get('chart');
-  const chart: 'e2e' | 'interactivity' = chartRaw === 'interactivity' ? 'interactivity' : 'e2e';
-
-  return {
-    model: get('model') || EMBED_PARAM_DEFAULTS.model,
-    isl: get('isl') || EMBED_PARAM_DEFAULTS.isl,
-    osl: get('osl') || EMBED_PARAM_DEFAULTS.osl,
-    precisions: get('precisions') || EMBED_PARAM_DEFAULTS.precisions,
-    gpus: get('gpus') ?? EMBED_PARAM_DEFAULTS.gpus,
-    y: get('y') || EMBED_PARAM_DEFAULTS.y,
-    chart,
-  };
-}
-
-/**
- * Translate a DB model key (`dsr1`) to the display name (`DeepSeek-R1-0528`)
- * used internally as the `g_model` value. Falls back to the default model when
- * the key is unknown — partner sites with stale model keys still render
- * something instead of an empty page.
- */
-export function resolveEmbedModel(dbKey: string): string {
-  return (
-    DB_MODEL_TO_DISPLAY[dbKey] ??
-    DB_MODEL_TO_DISPLAY[EMBED_PARAM_DEFAULTS.model] ??
-    'DeepSeek-R1-0528'
-  );
-}
-
-/**
- * Translate an `isl`/`osl` pair into the internal sequence string (`8k/1k` etc).
- * Falls back to the default sequence when the pair has no known mapping.
- */
-export function resolveEmbedSequence(isl: string, osl: string): string {
-  const islN = Number.parseInt(isl, 10);
-  const oslN = Number.parseInt(osl, 10);
-  if (Number.isFinite(islN) && Number.isFinite(oslN)) {
-    const seq = islOslToSequence(islN, oslN);
-    if (seq) return seq;
-  }
-  return '8k/1k';
-}
-
-/**
- * Translate embed params into the internal `UrlStateParams` shape that the
- * inference providers consume on mount. Pass the result to `seedUrlState`
- * before any provider mounts.
- */
-export function embedParamsToUrlState(params: EmbedParams): UrlStateParams {
-  const out: UrlStateParams = {
-    g_model: resolveEmbedModel(params.model),
-    i_seq: resolveEmbedSequence(params.isl, params.osl),
-    i_prec: params.precisions,
-    i_metric: resolveEmbedYMetric(params.y),
-  };
-  if (params.gpus) {
-    out.i_active = params.gpus;
-  }
-  return out;
-}
-
-/**
- * Build the canonical, internal-route URL that an embed view's attribution
- * link should deep-link to. Mirrors the embed state into the dashboard's
- * `g_*` / `i_*` keys so opening the canonical link reproduces the same chart.
- */
-export function buildCanonicalHref(params: EmbedParams, origin: string): string {
-  const sp = new URLSearchParams();
-  sp.set('g_model', resolveEmbedModel(params.model));
-  sp.set('i_seq', resolveEmbedSequence(params.isl, params.osl));
-  sp.set('i_prec', params.precisions);
-  sp.set('i_metric', resolveEmbedYMetric(params.y));
-  if (params.gpus) sp.set('i_active', params.gpus);
-  return `${origin}/inference?${sp.toString()}`;
-}
-
-function embedYQueryFromDashboardMetric(yMetric: string): string {
-  if (yMetric.startsWith('y_')) {
-    return Y_METRIC_SHORT_FROM_INTERNAL[yMetric] ?? EMBED_PARAM_DEFAULTS.y;
-  }
-  if (yMetric in Y_METRIC_ALIASES) return yMetric;
-  return EMBED_PARAM_DEFAULTS.y;
+export function readEmbedChartVariant(value: string | null | undefined): 'e2e' | 'interactivity' {
+  return value === 'interactivity' ? 'interactivity' : 'e2e';
 }
 
 /**
  * Build a stable `/embed/scatter?...` URL from dashboard-style chart state.
+ * Emits site-style parameter keys (`g_model`, `i_seq`, `i_prec`, `i_metric`,
+ * `i_active`, `i_chart`) so the embed URL and the main site share the same
+ * key contract with no translation layer.
  *
- * Note: The embed route does not carry `?unofficialrun=` / overlay data — the URL
- * reflects official benchmark filters only (model, sequence, precisions, metric,
- * visible GPUs, chart type).
+ * Note: the embed route does not carry `?unofficialrun=` / overlay data — the
+ * URL reflects official benchmark filters only.
  */
 export function buildEmbedScatterUrl(args: {
   origin: string;
@@ -208,35 +50,56 @@ export function buildEmbedScatterUrl(args: {
   chartType: 'e2e' | 'interactivity';
 }): string {
   const baseOrigin = args.origin.replace(/\/$/u, '');
-  const dbKey = DISPLAY_MODEL_TO_DB[args.model]?.[0] ?? EMBED_PARAM_DEFAULTS.model;
-
-  const islOsl = sequenceToIslOsl(args.sequence);
-  const isl = islOsl ? String(islOsl.isl) : EMBED_PARAM_DEFAULTS.isl;
-  const osl = islOsl ? String(islOsl.osl) : EMBED_PARAM_DEFAULTS.osl;
-
-  const precisions =
-    args.precisions.trim() === '' ? EMBED_PARAM_DEFAULTS.precisions : args.precisions;
-
-  const y = embedYQueryFromDashboardMetric(args.yMetric);
+  const precisions = args.precisions.trim() === '' ? 'fp4' : args.precisions;
 
   const sp = new URLSearchParams();
-  sp.set('model', dbKey);
-  sp.set('isl', isl);
-  sp.set('osl', osl);
-  sp.set('precisions', precisions);
-  if (args.activeGpus.trim()) sp.set('gpus', args.activeGpus.trim());
-  sp.set('y', y);
-  if (args.chartType === 'interactivity') sp.set('chart', 'interactivity');
+  sp.set('g_model', args.model);
+  sp.set('i_seq', args.sequence);
+  sp.set('i_prec', precisions);
+  sp.set('i_metric', args.yMetric);
+  if (args.activeGpus.trim()) sp.set('i_active', args.activeGpus.trim());
+  if (args.chartType === 'interactivity') sp.set('i_chart', 'interactivity');
 
   return `${baseOrigin}/embed/scatter?${sp.toString()}`;
+}
+
+/**
+ * Build the canonical `/inference` URL that the embed attribution link
+ * should deep-link to. The four core embed params (`g_model`, `i_seq`,
+ * `i_prec`, `i_metric`) always appear — using `PARAM_DEFAULTS` as fallback
+ * when absent in the embed URL — so a bare `/embed/scatter` produces a
+ * fully-specified canonical link. The embed-only `i_chart` key is dropped.
+ */
+export function buildCanonicalHref(
+  params: UrlStateParams & { i_chart?: string },
+  origin: string,
+): string {
+  const sp = new URLSearchParams();
+
+  // Core params: always present (fall back to site defaults when absent).
+  for (const k of EMBED_CANONICAL_KEYS) {
+    sp.set(k, params[k] ?? PARAM_DEFAULTS[k]);
+  }
+
+  // i_active only when explicitly set (empty = all GPUs = no param needed).
+  if (params.i_active) sp.set('i_active', params.i_active);
+
+  // Pass through any additional site params the embed URL may carry,
+  // skipping keys already handled above and the embed-only i_chart.
+  const handled = new Set<string>([...EMBED_CANONICAL_KEYS, 'i_active', 'i_chart']);
+  for (const [k, v] of Object.entries(params)) {
+    if (handled.has(k) || !v) continue;
+    sp.set(k, v);
+  }
+
+  return `${origin.replace(/\/$/u, '')}/inference?${sp.toString()}`;
 }
 
 const DEFAULT_IFRAME_WIDTH = 800;
 const DEFAULT_IFRAME_HEIGHT = 500;
 
 /**
- * Builds a partner-ready `<iframe>` snippet for an embed URL. Matches the
- * recommended attributes in `docs/embed.md` (`referrerpolicy="origin"`, etc.).
+ * Builds a partner-ready `<iframe>` snippet for an embed URL.
  */
 export function buildEmbedIframeSnippet(
   src: string,

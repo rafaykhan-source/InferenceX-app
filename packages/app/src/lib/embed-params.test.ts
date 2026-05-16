@@ -4,128 +4,28 @@ import {
   buildCanonicalHref,
   buildEmbedIframeSnippet,
   buildEmbedScatterUrl,
-  embedParamsToUrlState,
-  EMBED_PARAM_DEFAULTS,
-  EMBED_PARAM_KEYS,
-  readEmbedParams,
-  resolveEmbedModel,
-  resolveEmbedSequence,
-  resolveEmbedYMetric,
-  Y_METRIC_SHORT_FROM_INTERNAL,
+  readEmbedChartVariant,
 } from '@/lib/embed-params';
 
-describe('readEmbedParams', () => {
-  it('returns defaults for empty input', () => {
-    expect(readEmbedParams(new URLSearchParams())).toEqual(EMBED_PARAM_DEFAULTS);
+describe('readEmbedChartVariant', () => {
+  it('returns e2e by default (absent/null)', () => {
+    expect(readEmbedChartVariant(null)).toBe('e2e');
+    expect(readEmbedChartVariant(undefined)).toBe('e2e');
+    expect(readEmbedChartVariant('')).toBe('e2e');
   });
 
-  it('returns defaults for null input', () => {
-    expect(readEmbedParams(null)).toEqual(EMBED_PARAM_DEFAULTS);
+  it('returns interactivity for exact match', () => {
+    expect(readEmbedChartVariant('interactivity')).toBe('interactivity');
   });
 
-  it('reads model, isl, osl, precisions, gpus, y', () => {
-    const sp = new URLSearchParams(
-      'model=llama70b&isl=1024&osl=8192&precisions=fp8&gpus=h200_vllm,b200_sglang&y=costh',
-    );
-    expect(readEmbedParams(sp)).toEqual({
-      model: 'llama70b',
-      isl: '1024',
-      osl: '8192',
-      precisions: 'fp8',
-      gpus: 'h200_vllm,b200_sglang',
-      y: 'costh',
-      chart: 'e2e',
-    });
-  });
-
-  it('accepts chart=interactivity', () => {
-    const sp = new URLSearchParams('chart=interactivity');
-    expect(readEmbedParams(sp).chart).toBe('interactivity');
-  });
-
-  it('falls back to e2e for unknown chart values', () => {
-    expect(readEmbedParams(new URLSearchParams('chart=bogus')).chart).toBe('e2e');
-  });
-
-  it('reads from plain object input', () => {
-    expect(readEmbedParams({ model: 'dsv4', y: 'tpPerMw' })).toMatchObject({
-      model: 'dsv4',
-      y: 'tpPerMw',
-    });
-  });
-});
-
-describe('resolveEmbedYMetric', () => {
-  it('maps short forms to internal y_* keys', () => {
-    expect(resolveEmbedYMetric('tpPerGpu')).toBe('y_tpPerGpu');
-    expect(resolveEmbedYMetric('costh')).toBe('y_costh');
-    expect(resolveEmbedYMetric('tpPerMw')).toBe('y_tpPerMw');
-  });
-
-  it('passes through full y_* keys', () => {
-    expect(resolveEmbedYMetric('y_costnOutput')).toBe('y_costnOutput');
-  });
-
-  it('falls back to default for unknown metrics', () => {
-    expect(resolveEmbedYMetric('not_a_metric')).toBe('y_tpPerGpu');
-    expect(resolveEmbedYMetric(null)).toBe('y_tpPerGpu');
-  });
-});
-
-describe('resolveEmbedModel', () => {
-  it('maps known DB keys to display names', () => {
-    expect(resolveEmbedModel('dsr1')).toBe('DeepSeek-R1-0528');
-    expect(resolveEmbedModel('llama70b')).toBe('Llama-3.3-70B-Instruct-FP8');
-  });
-
-  it('falls back to the default model for unknown keys', () => {
-    expect(resolveEmbedModel('not-a-model')).toBe('DeepSeek-R1-0528');
-  });
-});
-
-describe('resolveEmbedSequence', () => {
-  it('maps known isl/osl pairs to sequence strings', () => {
-    expect(resolveEmbedSequence('8192', '1024')).toBe('8k/1k');
-    expect(resolveEmbedSequence('1024', '1024')).toBe('1k/1k');
-    expect(resolveEmbedSequence('1024', '8192')).toBe('1k/8k');
-  });
-
-  it('falls back to default sequence for unknown pairs', () => {
-    expect(resolveEmbedSequence('999', '999')).toBe('8k/1k');
-    expect(resolveEmbedSequence('not-a-number', '1024')).toBe('8k/1k');
-  });
-});
-
-describe('embedParamsToUrlState', () => {
-  it('translates defaults to the matching url-state shape', () => {
-    expect(embedParamsToUrlState(EMBED_PARAM_DEFAULTS)).toEqual({
-      g_model: 'DeepSeek-R1-0528',
-      i_seq: '8k/1k',
-      i_prec: 'fp4',
-      i_metric: 'y_tpPerGpu',
-    });
-  });
-
-  it('includes i_active when gpus are specified', () => {
-    const params = readEmbedParams(new URLSearchParams('gpus=b300_sglang,gb300_dynamo-sglang'));
-    expect(embedParamsToUrlState(params).i_active).toBe('b300_sglang,gb300_dynamo-sglang');
-  });
-
-  it('omits i_active when no gpus are specified', () => {
-    expect(embedParamsToUrlState(EMBED_PARAM_DEFAULTS).i_active).toBeUndefined();
-  });
-});
-
-describe('Y_METRIC_SHORT_FROM_INTERNAL', () => {
-  it('maps internal y_* keys to embed short y values', () => {
-    expect(Y_METRIC_SHORT_FROM_INTERNAL['y_tpPerGpu']).toBe('tpPerGpu');
-    expect(Y_METRIC_SHORT_FROM_INTERNAL['y_costh']).toBe('costh');
-    expect(Y_METRIC_SHORT_FROM_INTERNAL['y_jTotal']).toBe('jTotal');
+  it('falls back to e2e for unknown values', () => {
+    expect(readEmbedChartVariant('bogus')).toBe('e2e');
+    expect(readEmbedChartVariant('e2e')).toBe('e2e');
   });
 });
 
 describe('buildEmbedScatterUrl', () => {
-  it('round-trips defaults through readEmbedParams and embedParamsToUrlState', () => {
+  it('emits site-style parameter keys', () => {
     const url = buildEmbedScatterUrl({
       origin: 'https://inferencex.example.com',
       model: 'DeepSeek-R1-0528',
@@ -136,41 +36,133 @@ describe('buildEmbedScatterUrl', () => {
       chartType: 'e2e',
     });
     expect(url).toMatch(/^https:\/\/inferencex\.example\.com\/embed\/scatter\?/u);
-    const parsed = readEmbedParams(new URL(url).searchParams);
-    expect(parsed.chart).toBe('e2e');
-    expect(embedParamsToUrlState(parsed)).toEqual({
-      g_model: 'DeepSeek-R1-0528',
-      i_seq: '8k/1k',
-      i_prec: 'fp4',
-      i_metric: 'y_tpPerGpu',
-    });
+    const sp = new URL(url).searchParams;
+    expect(sp.get('g_model')).toBe('DeepSeek-R1-0528');
+    expect(sp.get('i_seq')).toBe('8k/1k');
+    expect(sp.get('i_prec')).toBe('fp4');
+    expect(sp.get('i_metric')).toBe('y_tpPerGpu');
+    expect(sp.has('i_active')).toBe(false);
+    expect(sp.has('i_chart')).toBe(false);
   });
 
-  it('round-trips interactivity, GPUs, and cost metric', () => {
+  it('omits i_chart for e2e (default)', () => {
     const url = buildEmbedScatterUrl({
       origin: 'https://example.com',
       model: 'DeepSeek-V4-Pro',
       sequence: '1k/1k',
       precisions: 'fp4',
       yMetric: 'y_costh',
+      activeGpus: '',
+      chartType: 'e2e',
+    });
+    expect(new URL(url).searchParams.has('i_chart')).toBe(false);
+  });
+
+  it('includes i_chart=interactivity when chart type is interactivity', () => {
+    const url = buildEmbedScatterUrl({
+      origin: 'https://example.com',
+      model: 'DeepSeek-V4-Pro',
+      sequence: '1k/1k',
+      precisions: 'fp4',
+      yMetric: 'y_costh',
+      activeGpus: '',
+      chartType: 'interactivity',
+    });
+    expect(new URL(url).searchParams.get('i_chart')).toBe('interactivity');
+  });
+
+  it('includes i_active when activeGpus is set', () => {
+    const url = buildEmbedScatterUrl({
+      origin: 'https://example.com',
+      model: 'DeepSeek-R1-0528',
+      sequence: '8k/1k',
+      precisions: 'fp4',
+      yMetric: 'y_tpPerGpu',
+      activeGpus: 'b200_sglang,gb300_dynamo-sglang',
+      chartType: 'e2e',
+    });
+    expect(new URL(url).searchParams.get('i_active')).toBe('b200_sglang,gb300_dynamo-sglang');
+  });
+
+  it('falls back to fp4 when precisions is empty', () => {
+    const url = buildEmbedScatterUrl({
+      origin: 'https://example.com',
+      model: 'DeepSeek-R1-0528',
+      sequence: '8k/1k',
+      precisions: '',
+      yMetric: 'y_tpPerGpu',
+      activeGpus: '',
+      chartType: 'e2e',
+    });
+    expect(new URL(url).searchParams.get('i_prec')).toBe('fp4');
+  });
+
+  it('the produced URL can be loaded by seedUrlState (site-key passthrough)', () => {
+    const url = buildEmbedScatterUrl({
+      origin: 'https://inferencex.semianalysis.com',
+      model: 'Llama-3.3-70B-Instruct-FP8',
+      sequence: '1k/8k',
+      precisions: 'fp8',
+      yMetric: 'y_costh',
       activeGpus: 'b200_vllm',
       chartType: 'interactivity',
     });
-    const parsed = readEmbedParams(new URL(url).searchParams);
-    expect(parsed.chart).toBe('interactivity');
-    expect(embedParamsToUrlState(parsed)).toEqual({
-      g_model: 'DeepSeek-V4-Pro',
-      i_seq: '1k/1k',
-      i_prec: 'fp4',
-      i_metric: 'y_costh',
-      i_active: 'b200_vllm',
-    });
+    const sp = new URL(url).searchParams;
+    // All keys are directly usable as UrlStateParams — no further translation required.
+    expect(sp.get('g_model')).toBe('Llama-3.3-70B-Instruct-FP8');
+    expect(sp.get('i_seq')).toBe('1k/8k');
+    expect(sp.get('i_prec')).toBe('fp8');
+    expect(sp.get('i_metric')).toBe('y_costh');
+    expect(sp.get('i_active')).toBe('b200_vllm');
+    expect(sp.get('i_chart')).toBe('interactivity');
+  });
+});
+
+describe('buildCanonicalHref', () => {
+  it('points to /inference and drops i_chart', () => {
+    const href = buildCanonicalHref(
+      {
+        g_model: 'DeepSeek-V4-Pro',
+        i_seq: '1k/1k',
+        i_prec: 'fp4',
+        i_metric: 'y_costh',
+        i_active: 'b200_vllm',
+        i_chart: 'interactivity',
+      } as any,
+      'https://inferencex.semianalysis.com',
+    );
+    expect(href).toContain('https://inferencex.semianalysis.com/inference?');
+    expect(href).toContain('g_model=DeepSeek-V4-Pro');
+    expect(href).toContain('i_seq=1k%2F1k');
+    expect(href).toContain('i_prec=fp4');
+    expect(href).toContain('i_metric=y_costh');
+    expect(href).toContain('i_active=b200_vllm');
+    expect(href).not.toContain('i_chart');
+  });
+
+  it('applies defaults for the four core params when the embed URL has no query string', () => {
+    // A bare /embed/scatter URL passes an empty params object.
+    // The canonical href must still include the core params so the link works.
+    const href = buildCanonicalHref({}, 'https://example.com');
+    expect(href).toContain('g_model=DeepSeek-R1-0528');
+    expect(href).toContain('i_seq=8k%2F1k');
+    expect(href).toContain('i_prec=fp4');
+    expect(href).toContain('i_metric=y_tpPerGpu');
+    expect(href).not.toContain('i_active');
+  });
+
+  it('omits i_active when not set', () => {
+    const href = buildCanonicalHref(
+      { g_model: 'DeepSeek-R1-0528', i_seq: '8k/1k', i_prec: 'fp4', i_metric: 'y_tpPerGpu' },
+      'https://example.com',
+    );
+    expect(href).not.toContain('i_active');
   });
 });
 
 describe('buildEmbedIframeSnippet', () => {
   it('wraps the embed URL in a recommended iframe tag', () => {
-    const url = 'https://example.com/embed/scatter?model=dsr1';
+    const url = 'https://example.com/embed/scatter?g_model=DeepSeek-R1-0528';
     const snippet = buildEmbedIframeSnippet(url);
     expect(snippet).toContain(`src="${url}"`);
     expect(snippet).toContain('width="800"');
@@ -184,38 +176,5 @@ describe('buildEmbedIframeSnippet', () => {
     const snippet = buildEmbedIframeSnippet('https://x.test/e', { width: '100%', height: 400 });
     expect(snippet).toContain('width="100%"');
     expect(snippet).toContain('height="400"');
-  });
-});
-
-describe('EMBED_PARAM_KEYS', () => {
-  it('contains every key in EMBED_PARAM_DEFAULTS (contract can only grow)', () => {
-    const defaultKeys = Object.keys(EMBED_PARAM_DEFAULTS);
-    for (const key of defaultKeys) {
-      expect(EMBED_PARAM_KEYS).toContain(key);
-    }
-  });
-
-  it('is frozen (cannot be mutated at runtime)', () => {
-    expect(Object.isFrozen(EMBED_PARAM_KEYS)).toBe(true);
-  });
-});
-
-describe('buildCanonicalHref', () => {
-  it('points to /inference and round-trips the embed state', () => {
-    const params = readEmbedParams(
-      new URLSearchParams('model=dsv4&isl=1024&osl=1024&precisions=fp4&gpus=b200_vllm&y=costh'),
-    );
-    const href = buildCanonicalHref(params, 'https://inferencex.semianalysis.com');
-    expect(href).toContain('https://inferencex.semianalysis.com/inference?');
-    expect(href).toContain('g_model=DeepSeek-V4-Pro');
-    expect(href).toContain('i_seq=1k%2F1k');
-    expect(href).toContain('i_prec=fp4');
-    expect(href).toContain('i_metric=y_costh');
-    expect(href).toContain('i_active=b200_vllm');
-  });
-
-  it('omits i_active when no gpus are specified', () => {
-    const href = buildCanonicalHref(EMBED_PARAM_DEFAULTS, 'https://example.com');
-    expect(href).not.toContain('i_active');
   });
 });
